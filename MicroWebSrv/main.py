@@ -1,14 +1,17 @@
 import network
 import machine
 import time
+from machine import Timer
 from microWebSrv import MicroWebSrv
+
 print("ESP32 starting...")
 
-# Kết nối WiFi (thay đổi SSID và PASSWORD)
+# Kết nối WiFi
 sta_if = network.WLAN(network.STA_IF)
 sta_if.active(True)
 sta_if.connect('Michelle', '0908800130')
 while not sta_if.isconnected():
+    print("Waiting for WiFi connection...")
     time.sleep(1)
 print('WiFi connected:', sta_if.ifconfig())
 
@@ -20,40 +23,218 @@ channels = {
     4: machine.Pin(15, machine.Pin.OUT)
 }
 
-# Hàm điều khiển GPIO
+# LED mặc định trên ESP32 (thường là GPIO2, kiểm tra lại nếu không sáng)
+LED_PIN = 2
+led = machine.Pin(LED_PIN, machine.Pin.OUT)
+
+timers = {}  # Quản lý timer cho từng channel
+
+def blink_led(times=3, duration=100):
+    for _ in range(times):
+        led.value(1)
+        time.sleep_ms(duration)
+        led.value(0)
+        time.sleep_ms(duration)
+
 def set_channel(ch, state):
     if ch in channels:
         channels[ch].value(state)
+        print(f"[set_channel] Channel {ch} set to {'ON' if state else 'OFF'}")
+    else:
+        print(f"[set_channel] Invalid channel: {ch}")
+        
+def auto_off_factory(ch):
+    def auto_off(timer):
+        set_channel(ch, 0)
+        print(f"[auto_off] Channel {ch} auto turned OFF")
+        timers.pop(ch, None)
+    return auto_off
 
-# Xử lý trang chính
 def handlerIndex(httpClient, httpResponse):
-    html = """<!DOCTYPE html>
+    print("[handlerIndex] Browser accessed main page")
+    html = """
+<!DOCTYPE html>
 <html>
-<head><title>ESP32 Control</title></head>
+<head>
+    <title>ESP32 Web Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    body {
+        background: #111;
+        color: #fff;
+        font-family: Arial, sans-serif;
+        min-height: 100vh;
+        min-width: 100vw;
+        box-sizing: border-box;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+    }
+    .container {
+        width: 100vw;
+        max-width: 500px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 18px;
+        padding: 12px 0 32px 0;
+        box-sizing: border-box;
+    }
+    .card {
+    background: transparent;
+    border: 2.5px solid #444;
+    border-radius: 22px;
+    padding: 18px 8px 18px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 2px 16px #000a;
+    min-width: 0;
+    min-height: 280px;
+    width: 95%;
+    justify-content: space-between;
+    }
+    .icon img {
+        width: 72px;
+        height: 108px;
+        margin-bottom: 8px;
+        margin-top: 12px;
+    }
+    .room {
+        font-size: 1.4rem;
+        margin-bottom: 18px;
+        font-weight: bold;
+    }
+    .flush-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        outline: none;
+        margin-top: 8px;
+        margin-bottom: 12px;
+    }
+    .flush-btn img {
+        width: 72px;
+        height: 72px;
+        display: block;
+    }
+    .flush-btn:active img {
+        filter: brightness(0.8);
+    }
+    .logo {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: 48px;
+        opacity: 0.85;
+        z-index: 10;
+    }
+    @media (max-width: 600px) {
+        .container {
+            max-width: 98vw;
+            gap: 10px;
+            padding: 4px 0 24px 0;
+        }
+        .card {
+            padding: 10px 2px 10px 2px;
+            min-height: 240px;
+        }
+        .icon img {
+            width: 48px;
+            height: 72px;
+            margin-bottom: 8px;
+        }
+        .flush-btn img {
+            width: 60px;
+            height: 60px;
+        }
+        .logo {
+            width: 32px;
+            right: 8px;
+            bottom: 8px;
+        }
+        .room {
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+        }
+    }
+    </style>
+</head>
 <body>
-<h2>Điều khiển thiết bị</h2>
-<form method="POST" action="/control">
-"""
-    for ch in channels:
-        html += f'Kênh {ch}: <button name="ch" value="{ch}_on">Bật</button> <button name="ch" value="{ch}_off">Tắt</button><br>'
-    html += """
-</form>
+    <form method="post" action="/control" style="width:100%;">
+        <div class="container">
+            <div class="card">
+                <div class="icon"><img src="/static/male.png" alt="Male"></div>
+                <div class="room">Room 1</div>
+                <button class="flush-btn" name="ch" value="1_on">
+                    <img src="/static/button.png" alt="FLUSH">
+                </button>
+            </div>
+            <div class="card">
+                <div class="icon"><img src="/static/male.png" alt="Male"></div>
+                <div class="room">Room 2</div>
+                <button class="flush-btn" name="ch" value="2_on">
+                    <img src="/static/button.png" alt="FLUSH">
+                </button>
+            </div>
+            <div class="card">
+                <div class="icon"><img src="/static/female.png" alt="Female"></div>
+                <div class="room">Room 1</div>
+                <button class="flush-btn" name="ch" value="3_on">
+                    <img src="/static/button.png" alt="FLUSH">
+                </button>
+            </div>
+            <div></div>
+        </div>
+    </form>
+    <img src="/static/logo.png" class="logo" alt="Logo">
 </body>
 </html>
 """
     httpResponse.WriteResponseOk(contentType="text/html", contentCharset="UTF-8", content=html)
 
-# Xử lý điều khiển
 def handlerControl(httpClient, httpResponse):
-    form = httpClient.ReadRequestPostedFormData()
-    if "ch" in form:
-        val = form["ch"]
-        ch, action = val.split("_")
-        ch = int(ch)
-        if action == "on":
-            set_channel(ch, 1)
+    try:
+        form = httpClient.ReadRequestPostedFormData()
+        print("[handlerControl] Received POST data:", form)
+
+        val = form.get("ch")
+        if val:
+            print("[handlerControl] Button value:", val)
+            # Blink LED mỗi khi nhấn nút
+            blink_led(times=3, duration=80)
+
+            ch_str, action = val.split("_")
+            ch = int(ch_str)
+            state = 1 if action == "on" else 0
+
+            set_channel(ch, state)
+
+            # Nếu bật (on), lên kế hoạch tự động tắt sau 1.5 giây
+            timer_id = ch - 1  # Channel 1 -> Timer(0), Channel 2 -> Timer(1), ...
+            if state == 1:
+                if ch in timers:
+                    timers[ch].deinit()
+                t = Timer(-1)
+                t.init(mode=Timer.ONE_SHOT, period=1500, callback=auto_off_factory(ch))
+                timers[ch] = t
+            else:
+                # Nếu nhấn OFF, huỷ timer nếu có
+                if ch in timers:
+                    timers[ch].deinit()
+                    timers.pop(ch, None)
         else:
-            set_channel(ch, 0)
+            print("[handlerControl] Missing field 'ch' in form")
+    except Exception as e:
+        print("[handlerControl] Exception:", e)
+
     httpResponse.WriteResponseRedirect("/")
 
 routeHandlers = [
@@ -61,5 +242,5 @@ routeHandlers = [
     ("/control", "POST", handlerControl)
 ]
 
-mws = MicroWebSrv(routeHandlers=routeHandlers)
+mws = MicroWebSrv(routeHandlers=routeHandlers, webPath="/")
 mws.Start(threaded=True)

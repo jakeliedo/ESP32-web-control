@@ -9,6 +9,9 @@ print("ESP32 starting...")
 # Kết nối WiFi
 sta_if = network.WLAN(network.STA_IF)
 sta_if.active(True)
+# Thiết lập IP tĩnh: (IP, subnet mask, gateway, DNS)
+sta_if.ifconfig(('192.168.1.43', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
+# Kết nối đến Wifi
 sta_if.connect('Michelle', '0908800130')
 while not sta_if.isconnected():
     print("Waiting for WiFi connection...")
@@ -223,8 +226,9 @@ def handlerControl(httpClient, httpResponse):
                 if ch in timers:
                     timers[ch].deinit()
                 t = Timer(-1)
-                t.init(mode=Timer.ONE_SHOT, period=1500, callback=auto_off_factory(ch))
+                t.init(mode=Timer.ONE_SHOT, period=3000, callback=auto_off_factory(ch))
                 timers[ch] = t
+                print("[handlerControl] Off after 3s for channel")
             else:
                 # Nếu nhấn OFF, huỷ timer nếu có
                 if ch in timers:

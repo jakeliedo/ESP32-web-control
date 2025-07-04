@@ -6,13 +6,33 @@ from microWebSrv import MicroWebSrv
 
 print("ESP32 starting...")
 
-# Kết nối WiFi
+# Quét các mạng WiFi xung quanh
 sta_if = network.WLAN(network.STA_IF)
 sta_if.active(True)
-# Thiết lập IP tĩnh: (IP, subnet mask, gateway, DNS)
-sta_if.ifconfig(('192.168.1.43', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
-# Kết nối đến Wifi
-sta_if.connect('Michelle', '0908800130')
+print("Scanning WiFi...")
+nets = sta_if.scan()
+ssid_list = [net[0].decode() for net in nets]
+print("Found SSIDs:", ssid_list)
+
+# Ưu tiên kết nối theo thứ tự
+if "Michelle" in ssid_list:
+    print("Connecting to Michelle...")
+    sta_if.ifconfig(('192.168.1.43', '255.255.255.0', '192.168.1.1', '8.8.8.8'))
+    sta_if.connect('Michelle', '0908800130')
+elif "Vinternal" in ssid_list:
+    print("Connecting to Vinternal...")
+    sta_if.ifconfig(('192.168.100.72','255.255.255.0','192.168.100.1', '8.8.8.8'))
+    sta_if.connect('Vinternal', 'Veg@s123')
+elif "Floor 9" in ssid_list:
+    print("Connecting to Floor 9...")
+    sta_if.ifconfig(('192.168.100.72', '255.255.255.0', '192.168.100.1', '8.8.8.8'))
+    sta_if.connect('Floor 9', 'Veg@s123')
+else:
+    print("No known SSID found! Please check WiFi.")
+    while True:
+        time.sleep(5)
+
+# Đợi kết nối thành công
 while not sta_if.isconnected():
     print("Waiting for WiFi connection...")
     time.sleep(1)

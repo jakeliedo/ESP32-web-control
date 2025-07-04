@@ -3,7 +3,7 @@ from flask import Flask, render_template_string, request, redirect
 import requests
 
 # Địa chỉ IP của ESP32 (thay bằng IP thực tế của bạn)
-ESP32_IP = "http://192.168.1.43"
+ESP32_IP = "http://192.168.100.72"
 
 app = Flask(__name__)
 

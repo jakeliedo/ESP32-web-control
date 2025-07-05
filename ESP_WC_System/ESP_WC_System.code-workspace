@@ -17,11 +17,15 @@
                 "command": "extension.execute",
                 "priority": 4
             }
+        ],
+        "python.analysis.extraPaths": [
+            "./esp32_host/lib",
+            "./esp8266_nodes/lib"
         ]
     },
     "folders": [
         {
-            "path": ".."
+            "path": "."
         }
     ]
 }

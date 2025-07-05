@@ -179,9 +179,9 @@ pip install flask paho-mqtt
 4. **OTA Ready**: Framework prepared for future OTA updates
 
 ## Contact and Support
-- **Developer**: Jakelido
+- **Developer**: Jakeliedo
 - **Repository**: https://github.com/jakeliedo/ESP32-web-control
-- **Last Updated**: January 5, 2025
+- **Last Updated**: July 5, 2025
 
 ---
 *This documentation is continuously updated according to project development progress.*

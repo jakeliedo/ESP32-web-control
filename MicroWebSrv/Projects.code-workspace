@@ -22,6 +22,10 @@
     "folders": [
         {
             "path": "../ESP_WC_System"
+        },
+        {
+            "name": "serial:/COM10",
+            "uri": "serial://com10/"
         }
     ]
 }

@@ -1,0 +1,36 @@
+{
+    "host": {
+        "id": "esp32_host",
+        "type": "ESP32",
+        "description": "Main controller with web interface"
+    },
+    "nodes": [
+        {
+            "id": "wc1",
+            "type": "ESP8266",
+            "description": "WC Node 1",
+            "rooms": ["Male Room 1"],
+            "channels": {
+                "1": {"name": "Flush", "gpio": 5}
+            }
+        },
+        {
+            "id": "wc2",
+            "type": "ESP8266",
+            "description": "WC Node 2",
+            "rooms": ["Male Room 2"], 
+                        "channels": {
+                "1": {"name": "Flush", "gpio": 5}
+            }
+        },
+        {
+            "id": "wc3",
+            "type": "ESP8266",
+            "description": "WC Node 3",
+            "rooms": ["Female Room 1"],
+            "channels": {
+                "1": {"name": "Flush", "gpio": 5}
+            }
+        }
+    ]
+}

@@ -1,0 +1,69 @@
+/* Custom styling for WC Control System */
+
+.bg-pink {
+    background-color: #e91e63;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.node-card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.node-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom button styles */
+.btn-success {
+    background-color: #4CAF50;
+    border-color: #4CAF50;
+}
+
+.btn-success:hover {
+    background-color: #45a049;
+    border-color: #45a049;
+}
+
+footer {
+    margin-top: 50px;
+    border-top: 1px solid #eee;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .node-card {
+        margin-bottom: 20px;
+    }
+}
+
+.events-section {
+        margin-top: 20px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        background-color: #f9f9f9;
+    }
+    
+    .events-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .event-item {
+        padding: 6px 0;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+    }
+    
+    .event-item .time {
+        color: #666;
+        font-size: 12px;
+        margin-right: 10px;
+    }

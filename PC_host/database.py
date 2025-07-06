@@ -45,12 +45,13 @@ init_db()
 
 # Rest of your database functions...
 def get_all_nodes():
-    """Get all WC nodes from database"""
+    """Get all WC nodes from database, excluding pc_host"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    cursor.execute('SELECT * FROM nodes')
+    # Exclude pc_host from nodes list
+    cursor.execute('SELECT * FROM nodes WHERE id != ?', ('pc_host',))
     nodes = [dict(row) for row in cursor.fetchall()]
     
     # Parse JSON data
@@ -72,10 +73,14 @@ def update_node_status(node_id, status, data=None):
     # Check if node exists
     cursor.execute('SELECT id FROM nodes WHERE id = ?', (node_id,))
     if cursor.fetchone() is None:
-        # Create new node
+        # Create new node - use room_name from data if available
+        room_name = f'Node {node_id}'  # Default fallback
+        if data and 'room_name' in data:
+            room_name = data['room_name']
+        
         cursor.execute(
             'INSERT INTO nodes (id, name, location, status, last_seen, data) VALUES (?, ?, ?, ?, ?, ?)',
-            (node_id, f'Node {node_id}', 'Unknown', status, time.time(), '{}')
+            (node_id, room_name, 'Unknown', status, time.time(), '{}')
         )
     
     # Update node status
@@ -83,10 +88,17 @@ def update_node_status(node_id, status, data=None):
     
     if data:
         data_json = json.dumps(data)
-        cursor.execute(
-            'UPDATE nodes SET status = ?, last_seen = ?, data = ? WHERE id = ?',
-            (status, last_seen, data_json, node_id)
-        )
+        # Also update name if room_name is provided
+        if 'room_name' in data:
+            cursor.execute(
+                'UPDATE nodes SET status = ?, last_seen = ?, data = ?, name = ? WHERE id = ?',
+                (status, last_seen, data_json, data['room_name'], node_id)
+            )
+        else:
+            cursor.execute(
+                'UPDATE nodes SET status = ?, last_seen = ?, data = ? WHERE id = ?',
+                (status, last_seen, data_json, node_id)
+            )
     else:
         cursor.execute(
             'UPDATE nodes SET status = ?, last_seen = ? WHERE id = ?',

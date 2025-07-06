@@ -5,7 +5,7 @@ from umqtt.simple import MQTTClient
 import json
 
 # === Cấu hình Node ===
-NODE_ID = 'wc1'
+NODE_ID = 'wc3'
 MQTT_BROKER = '192.168.100.72'
 MQTT_PORT = 1883
 

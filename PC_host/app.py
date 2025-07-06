@@ -5,6 +5,7 @@ import time
 import json
 import os
 import uuid
+import requests
 
 # Import modules
 from config import DEBUG, SECRET_KEY, HOST, PORT
@@ -176,15 +177,171 @@ HTML = """
 </html>
 """
 
+# Mock data for demo purposes - Limited to 4 nodes (offline when not connected)
+MOCK_NODES = [
+    {
+        'node_id': 'wc_male_01',
+        'name': 'Room 1',
+        'node_type': 'male',
+        'status': 'offline',  # Mock data shows offline until real devices connect
+        'location': 'Floor 1',
+        'last_seen': time.time() - 600  # 10 minutes ago
+    },
+    {
+        'node_id': 'wc_male_02', 
+        'name': 'Room 2',
+        'node_type': 'male',
+        'status': 'offline',  # Mock data shows offline until real devices connect
+        'location': 'Floor 1', 
+        'last_seen': time.time() - 600  # 10 minutes ago
+    },
+    {
+        'node_id': 'wc_female_01',
+        'name': 'Room 1', 
+        'node_type': 'female',
+        'status': 'offline',  # Mock data shows offline until real devices connect
+        'location': 'Floor 1',
+        'last_seen': time.time() - 600  # 10 minutes ago
+    },
+    {
+        'node_id': 'wc_female_02',
+        'name': 'Room 2',
+        'node_type': 'female', 
+        'status': 'offline',  # Mock data shows offline until real devices connect
+        'location': 'Floor 1',
+        'last_seen': time.time() - 600  # 10 minutes ago
+    }
+]
+
+# Mock events data
+MOCK_EVENTS = [
+    {
+        'id': 1,
+        'timestamp': time.time() - 60,
+        'node_id': 'wc_male_01',
+        'event_type': 'web_command',
+        'data': {'action': 'flush', 'success': True, 'ui': 'dashboard'}
+    },
+    {
+        'id': 2, 
+        'timestamp': time.time() - 180,
+        'node_id': 'wc_female_01',
+        'event_type': 'sensor_trigger',
+        'data': {'sensor': 'motion', 'value': True}
+    },
+    {
+        'id': 3,
+        'timestamp': time.time() - 300,
+        'node_id': 'wc_male_02',
+        'event_type': 'status_change',
+        'data': {'old_status': 'offline', 'new_status': 'online'}
+    },
+    {
+        'id': 4,
+        'timestamp': time.time() - 420,
+        'node_id': 'wc_female_02',
+        'event_type': 'web_command',
+        'data': {'action': 'flush', 'success': False, 'ui': 'simple'}
+    },
+    {
+        'id': 5,
+        'timestamp': time.time() - 540,
+        'node_id': 'wc_male_03',
+        'event_type': 'web_command',
+        'data': {'action': 'flush', 'success': True, 'ui': 'dashboard'}
+    },
+    {
+        'id': 6,
+        'timestamp': time.time() - 660,
+        'node_id': 'wc_female_03',
+        'event_type': 'sensor_trigger',
+        'data': {'sensor': 'door', 'value': False}
+    },
+    {
+        'id': 7,
+        'timestamp': time.time() - 780,
+        'node_id': 'system',
+        'event_type': 'client_connect',
+        'data': {'client_ip': '192.168.1.100'}
+    },
+    {
+        'id': 8,
+        'timestamp': time.time() - 900,
+        'node_id': 'wc_male_01',
+        'event_type': 'status_change',
+        'data': {'old_status': 'offline', 'new_status': 'online'}
+    }
+]
+
+def get_nodes_with_mock_data():
+    """Get nodes from database, fallback to mock data if empty. Limit to 4 nodes maximum."""
+    try:
+        real_nodes = get_all_nodes()
+        if real_nodes and len(real_nodes) > 0:
+            # We have real ESP32 nodes connected
+            print(f"📡 Using REAL node data: {len(real_nodes)} ESP32 devices connected")
+            # Limit to first 4 nodes and ensure they have required fields
+            for node in real_nodes[:4]:
+                if 'node_type' not in node:
+                    # Extract node_type from node_id if missing
+                    if 'male' in node.get('id', ''):
+                        node['node_type'] = 'male'
+                    elif 'female' in node.get('id', ''):
+                        node['node_type'] = 'female'
+                    else:
+                        node['node_type'] = 'unknown'
+            return real_nodes[:4]
+        else:
+            print("⚠️  No ESP32 devices connected - Using MOCK data (all offline)")
+            return MOCK_NODES[:4]
+    except Exception as e:
+        print(f"❌ Error getting nodes from database, using mock data: {e}")
+        return MOCK_NODES[:4]
+
+def get_events_with_mock_data(limit=10):
+    """Get events from database, fallback to mock data if empty"""
+    try:
+        real_events = get_recent_events(limit)
+        if real_events and len(real_events) > 0:
+            return real_events
+        else:
+            print("No real events found, using mock data for demo")
+            return MOCK_EVENTS[:limit]
+    except Exception as e:
+        print(f"Error getting events from database, using mock data: {e}")
+        return MOCK_EVENTS[:limit]
+
 # Routes
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def dashboard():
     """Main dashboard page with Node and Events data"""
+    if request.method == 'POST':
+        # Handle control actions from dashboard
+        node_id = request.form.get('node_id')
+        action = request.form.get('action', 'flush')
+        
+        if node_id:
+            try:
+                # Publish command to MQTT
+                success = mqtt_handler.publish_command(node_id, action)
+                
+                # Log the action in our database
+                log_event(node_id, "web_command", {"action": action, "success": success, "ui": "dashboard"})
+                
+                print(f"Dashboard: Sent {action} to node {node_id}, success: {success}")
+                
+            except Exception as e:
+                print(f"Error in dashboard control: {e}")
+        
+        return redirect(url_for('dashboard'))
+    
+    # GET request - show the dashboard
     try:
-        nodes = get_all_nodes()
+        nodes = get_nodes_with_mock_data()
         print(f"DEBUG: Found {len(nodes)} nodes in database")
-        events = get_recent_events(10)  # Get 10 most recent events
-        return render_template('index.html', nodes=nodes, events=events)
+        events = get_events_with_mock_data(20)  # Get 20 most recent events for dashboard
+        current_time = time.time()
+        return render_template('index.html', nodes=nodes, events=events, current_time=current_time)
     except Exception as e:
         print(f"Error rendering dashboard: {e}")
         # Fall back to simple template if templates not found
@@ -192,25 +349,34 @@ def dashboard():
 
 @app.route("/simple", methods=["GET", "POST"])
 def simple_index():
-    """Simple UI for backward compatibility"""
+    """Mobile-optimized simple UI with 2x2 grid layout"""
     if request.method == "POST":
-        action = request.form.get("action")
-        # Gửi lệnh tới ESP32
-        try:
-            resp = requests.post(f"{ESP32_IP}/control", data={"ch": action}, timeout=2)
-            print(f"Sent command {action} to ESP32, response: {resp.text}")
-            
-            # Log the command in database
-            log_event('esp32', 'web_command', {'action': action})
-            
-            # Also publish to MQTT
-            node_id = action.split('_')[0] if '_' in action else 'esp32'
-            mqtt_handler.publish_command(node_id, action)
-            
-        except Exception as e:
-            print(f"Error sending command to ESP32: {e}")
+        node_id = request.form.get("node_id")
+        action = request.form.get("action", "flush")
+        
+        if node_id:
+            try:
+                # Publish command to MQTT
+                success = mqtt_handler.publish_command(node_id, action)
+                
+                # Log the action in our database
+                log_event(node_id, "web_command", {"action": action, "success": success, "ui": "simple"})
+                
+                print(f"Simple UI: Sent {action} to node {node_id}, success: {success}")
+                
+            except Exception as e:
+                print(f"Error in simple UI control: {e}")
+        
         return redirect("/simple")
-    return render_template_string(HTML)
+    
+    # GET request - show the simple UI
+    try:
+        nodes = get_nodes_with_mock_data()
+        return render_template('simple.html', nodes=nodes)
+    except Exception as e:
+        print(f"Error rendering simple UI: {e}")
+        # Fall back to old HTML template if simple.html not found
+        return render_template_string(HTML)
 
 @app.route('/control/<node_id>', methods=['POST'])
 def control(node_id):
@@ -263,8 +429,32 @@ def api_control(node_id):
 def events_page():
     """Page to view system events"""
     limit = int(request.args.get('limit', 50))
-    events = get_recent_events(limit)
+    events = get_events_with_mock_data(limit)
     return render_template('events.html', events=events)
+
+@app.route('/analytics')
+def analytics_page():
+    """Analytics and insights page"""
+    try:
+        # Get system analytics data
+        nodes = get_nodes_with_mock_data()
+        events = get_events_with_mock_data(100)  # Get more events for analytics
+        
+        # Calculate basic analytics
+        total_commands = len([e for e in events if e.get('event_type') == 'web_command'])
+        total_connections = len([e for e in events if e.get('event_type') == 'client_connect'])
+        
+        analytics_data = {
+            'total_commands': total_commands,
+            'total_connections': total_connections,
+            'nodes': nodes,
+            'events': events
+        }
+        
+        return render_template('analytics.html', **analytics_data)
+    except Exception as e:
+        print(f"Error rendering analytics page: {e}")
+        return f"Error loading analytics: {str(e)}", 500
 
 # SocketIO events for real-time updates
 @socketio.on('connect')

@@ -51,8 +51,7 @@ class MQTTHandler:
         client.subscribe("wc/#")
         print("Subscribed to wc/#")
         
-        # Publish online status
-        self.publish_status("pc_host", "online")
+        # Don't publish pc_host status - it should not appear as a node
         print("🟢 MQTT Broker is running and listening for connections")
         print("Waiting for devices to connect...")
     
@@ -78,8 +77,63 @@ class MQTTHandler:
                 'payload': payload
             })
     
-        # Process messages from ESP32
-        if topic == "wc/esp32/status":
+        # Parse topic parts: wc/node_id/message_type
+        topic_parts = topic.split('/')
+        if len(topic_parts) >= 3 and topic_parts[0] == 'wc':
+            node_id = topic_parts[1]
+            message_type = topic_parts[2]
+            
+            try:
+                data = json.loads(payload)
+                
+                # Handle status updates from ESP32 nodes
+                if message_type == "status":
+                    print(f"📡 Status update from {node_id}: {data.get('status', 'unknown')}")
+                    # Update node status in database - pass data so room_name can be used
+                    update_node_status(node_id, data.get('status', 'unknown'), data)
+                    # Log status update event
+                    log_event(node_id, 'status_update', data)
+                    
+                    # Emit real-time update to web clients
+                    if self.socketio:
+                        self.socketio.emit('node_status_update', {
+                            'node_id': node_id,
+                            'status': data.get('status', 'unknown'),
+                            'data': data
+                        })
+                
+                # Handle command responses from ESP32 nodes
+                elif message_type == "response":
+                    action = data.get('action', 'unknown')
+                    success = data.get('success', False)
+                    print(f"✅ Response from {node_id}: {action} - {'SUCCESS' if success else 'FAILED'}")
+                    
+                    # Log response event
+                    log_event(node_id, 'command_response', data)
+                    
+                    # Emit real-time update to web clients
+                    if self.socketio:
+                        self.socketio.emit('command_response', {
+                            'node_id': node_id,
+                            'action': action,
+                            'success': success,
+                            'data': data
+                        })
+                        
+                        # Also emit as new event for the events list
+                        self.socketio.emit('new_event', {
+                            'timestamp': time.time(),
+                            'node_id': node_id,
+                            'event_type': 'command_response',
+                            'data': data
+                        })
+                        
+            except json.JSONDecodeError:
+                # Handle plain text messages
+                print(f"📝 Plain text message from {node_id}: {payload}")
+                
+        # Legacy support for old ESP32 format
+        elif topic == "wc/esp32/status":
             try:
                 status_data = json.loads(payload)
                 # Log event to database
@@ -98,32 +152,37 @@ class MQTTHandler:
     
     def publish_command(self, node_id, action, data=None):
         """Publish a command to a node"""
-        if not self.client or not hasattr(self.client, 'is_connected') or not self.client.is_connected():
-            print("MQTT client not connected")
-            return False
-    
         try:
-            # Create command payload
+            # Create simple command payload that ESP32 expects
             if data is None:
                 data = {}
-        
+            
+            # Send simple JSON command
             payload = {
                 "action": action,
                 "timestamp": time.time()
             }
             payload.update(data)
-        
+            
             # Convert to JSON and publish
             json_payload = json.dumps(payload)
             topic = f"wc/{node_id}/command"
+            
+            # Publish the command
             result = self.client.publish(topic, json_payload)
-        
-            # Log command
-            print(f"Published command to {topic}: {json_payload}")
-        
+            
+            # Log command with more detail
+            print(f"📤 Publishing command to ESP32:")
+            print(f"   Topic: {topic}")
+            print(f"   Payload: {json_payload}")
+            print(f"   Result: {result.rc} ({'SUCCESS' if result.rc == 0 else 'FAILED'})")
+            
             # Return success based on publish result
             return result.rc == 0
+            
         except Exception as e:
+            print(f"❌ Error publishing command to {node_id}: {e}")
+            return False
             print(f"Error publishing command: {e}")
             return False
     
@@ -142,7 +201,7 @@ class MQTTHandler:
         """Disconnect from MQTT broker"""
         try:
             if hasattr(self, 'client') and self.client and hasattr(self.client, 'is_connected') and self.client.is_connected():
-                self.publish_status("pc_host", "offline")
+                # Don't publish pc_host status - it should not appear as a node
                 self.client.loop_stop()
                 self.client.disconnect()
         except Exception as e:

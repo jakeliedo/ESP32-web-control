@@ -1,42 +1,640 @@
 {% extends 'layout.html' %}
 
+{% block title %}Event Log - WC Control System{% endblock %}
+
 {% block content %}
-<div class="card">
-    <div class="card-header bg-secondary text-white">
-        <h5 class="mb-0">System Event Log</h5>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Node</th>
-                        <th>Event Type</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for event in events %}
-                    <tr>
-                        <td><span class="event-time" data-timestamp="{{ event.timestamp }}">{{ event.timestamp }}</span></td>
-                        <td>{{ event.node_name }}</td>
-                        <td>{{ event.event_type }}</td>
-                        <td>
-                            {% if event.data %}
-                                <code>{{ event.data }}</code>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="text-end mt-3">
-            <a href="/" class="btn btn-outline-primary">Back to Dashboard</a>
+<!-- Events Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="display-6 fw-bold mb-2">
+                    <i class="bi bi-clock-history me-3"></i>Event Log
+                </h1>
+                <p class="text-muted mb-0">Comprehensive system activity history</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="exportEvents()" data-bs-toggle="tooltip" title="Export Events">
+                    <i class="bi bi-download me-1"></i>Export
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="refreshEvents()" data-bs-toggle="tooltip" title="Refresh Events">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+                <a href="/" class="btn btn-primary btn-sm">
+                    <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                </a>
+            </div>
         </div>
     </div>
 </div>
+
+<!-- Event Statistics -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number">{{ events|length }}</div>
+                    <div class="stat-label">Total Events</div>
+                </div>
+                <div class="text-primary fs-2">
+                    <i class="bi bi-list-ul"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number text-success">{{ events|selectattr('event_type', 'equalto', 'web_command')|list|length }}</div>
+                    <div class="stat-label">Commands</div>
+                </div>
+                <div class="text-success fs-2">
+                    <i class="bi bi-play-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number text-info">{{ events|selectattr('event_type', 'equalto', 'client_connect')|list|length }}</div>
+                    <div class="stat-label">Connections</div>
+                </div>
+                <div class="text-info fs-2">
+                    <i class="bi bi-person-plus"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number text-warning">{{ (events|list)[-24:]|selectattr('event_type', 'equalto', 'error')|list|length if events|length > 24 else events|selectattr('event_type', 'equalto', 'error')|list|length }}</div>
+                    <div class="stat-label">Recent Errors</div>
+                </div>
+                <div class="text-warning fs-2">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters and Search -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="event-filter" class="form-label small text-muted">Event Type</label>
+                        <select class="form-select form-select-sm" id="event-filter">
+                            <option value="">All Events</option>
+                            <option value="web_command">Web Commands</option>
+                            <option value="client_connect">Client Connections</option>
+                            <option value="status_update">Status Updates</option>
+                            <option value="error">Errors</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="node-filter" class="form-label small text-muted">Node</label>
+                        <select class="form-select form-select-sm" id="node-filter">
+                            <option value="">All Nodes</option>
+                            {% for event in events %}
+                            <option value="{{ event.node_id }}">{{ event.node_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="search-input" class="form-label small text-muted">Search</label>
+                        <input type="text" class="form-control form-control-sm" id="search-input" placeholder="Search events...">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">&nbsp;</label>
+                        <div class="d-grid">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                                <i class="bi bi-x-circle me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Events Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-table me-2"></i>Event Details
+                    </h5>
+                    <div class="d-flex align-items-center">
+                        <small class="text-muted me-3">
+                            Showing <span id="visible-count">{{ events|length }}</span> of {{ events|length }} events
+                        </small>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="auto-refresh" checked>
+                            <label class="form-check-label small" for="auto-refresh">
+                                Auto-refresh
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if events %}
+                <div class="table-responsive">
+                    <table class="table table-enhanced table-hover mb-0" id="events-table">
+                        <thead>
+                            <tr>
+                                <th width="20%" class="sortable" data-column="timestamp">
+                                    <i class="bi bi-clock me-1"></i>Timestamp
+                                    <i class="bi bi-chevron-expand sort-icon"></i>
+                                </th>
+                                <th width="15%" class="sortable" data-column="node_id">
+                                    <i class="bi bi-hdd-network me-1"></i>Node
+                                    <i class="bi bi-chevron-expand sort-icon"></i>
+                                </th>
+                                <th width="20%" class="sortable" data-column="event_type">
+                                    <i class="bi bi-activity me-1"></i>Event Type
+                                    <i class="bi bi-chevron-expand sort-icon"></i>
+                                </th>
+                                <th width="35%">
+                                    <i class="bi bi-code-square me-1"></i>Details
+                                </th>
+                                <th width="10%">
+                                    <i class="bi bi-info-circle me-1"></i>Status
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-tbody">
+                            {% for event in events %}
+                            <tr class="event-row" 
+                                data-event-type="{{ event.event_type }}" 
+                                data-node-id="{{ event.node_id }}" 
+                                data-timestamp="{{ event.timestamp }}">
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <span class="event-time fw-medium" data-timestamp="{{ event.timestamp }}">
+                                            {{ event.timestamp }}
+                                        </span>
+                                        <small class="text-muted relative-time" data-timestamp="{{ event.timestamp }}">
+                                            {{ event.timestamp }}
+                                        </small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary fs-7">{{ event.node_id }}</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if event.event_type == 'web_command' %}
+                                            <i class="bi bi-play-circle text-success me-2"></i>
+                                        {% elif event.event_type == 'client_connect' %}
+                                            <i class="bi bi-person-plus text-info me-2"></i>
+                                        {% elif event.event_type == 'status_update' %}
+                                            <i class="bi bi-arrow-clockwise text-primary me-2"></i>
+                                        {% elif event.event_type == 'error' %}
+                                            <i class="bi bi-exclamation-triangle text-danger me-2"></i>
+                                        {% else %}
+                                            <i class="bi bi-circle text-muted me-2"></i>
+                                        {% endif %}
+                                        <span class="fw-medium">{{ event.event_type }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if event.data %}
+                                        <div class="event-data">
+                                            <code class="small">{{ event.data|tojson }}</code>
+                                            <button class="btn btn-sm btn-outline-secondary ms-2" 
+                                                    onclick="showEventDetails('{{ event.data|tojson|escape }}')"
+                                                    data-bs-toggle="tooltip" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if event.event_type == 'web_command' %}
+                                        <span class="badge bg-success" data-bs-toggle="tooltip" title="Command executed successfully">
+                                            <i class="bi bi-check"></i>
+                                        </span>
+                                    {% elif event.event_type == 'client_connect' %}
+                                        <span class="badge bg-info" data-bs-toggle="tooltip" title="Client connected">
+                                            <i class="bi bi-person-plus"></i>
+                                        </span>
+                                    {% elif event.event_type == 'error' %}
+                                        <span class="badge bg-danger" data-bs-toggle="tooltip" title="Error occurred">
+                                            <i class="bi bi-x"></i>
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-primary" data-bs-toggle="tooltip" title="System event">
+                                            <i class="bi bi-info"></i>
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3">No Events Found</h4>
+                    <p class="text-muted">Events will appear here as system activities occur.</p>
+                    <a href="/" class="btn btn-primary">
+                        <i class="bi bi-speedometer2 me-1"></i>Go to Dashboard
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-info-circle me-2"></i>Event Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="event-details-content" class="bg-light p-3 rounded"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Events page functionality
+    let currentSort = { column: 'timestamp', direction: 'desc' };
+    let filteredEvents = [];
+    let autoRefreshInterval = null;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('📋 Events page initializing...');
+        
+        // Initialize events data
+        initializeEventsData();
+        
+        // Setup event listeners
+        setupEventListeners();
+        
+        // Setup auto-refresh
+        setupAutoRefresh();
+        
+        // Initialize tooltips and filters
+        updateVisibleCount();
+        
+        console.log('✅ Events page initialized');
+    });
+    
+    function initializeEventsData() {
+        // Collect all events from the table
+        const eventRows = document.querySelectorAll('.event-row');
+        filteredEvents = Array.from(eventRows).map(row => ({
+            element: row,
+            timestamp: parseFloat(row.dataset.timestamp),
+            eventType: row.dataset.eventType,
+            nodeId: row.dataset.nodeId,
+            searchText: row.textContent.toLowerCase()
+        }));
+        
+        // Format timestamps
+        WCSystem.TimeManager.updateRelativeTimes();
+    }
+    
+    function setupEventListeners() {
+        // Filter controls
+        document.getElementById('event-filter').addEventListener('change', applyFilters);
+        document.getElementById('node-filter').addEventListener('change', applyFilters);
+        document.getElementById('search-input').addEventListener('input', 
+            WCSystem.utils.debounce(applyFilters, 300)
+        );
+        
+        // Sort controls
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.dataset.column;
+                sortEvents(column);
+            });
+            header.style.cursor = 'pointer';
+        });
+        
+        // Auto-refresh toggle
+        document.getElementById('auto-refresh').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                setupAutoRefresh();
+                WCSystem.NotificationManager.show('Auto-refresh enabled', 'info', 2000);
+            } else {
+                clearInterval(autoRefreshInterval);
+                WCSystem.NotificationManager.show('Auto-refresh disabled', 'info', 2000);
+            }
+        });
+    }
+    
+    function setupAutoRefresh() {
+        // Clear existing interval
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        
+        // Set up new interval if auto-refresh is enabled
+        const autoRefreshCheckbox = document.getElementById('auto-refresh');
+        if (autoRefreshCheckbox && autoRefreshCheckbox.checked) {
+            autoRefreshInterval = setInterval(() => {
+                if (document.hidden) return; // Don't refresh if tab is not visible
+                
+                console.log('🔄 Auto-refreshing events...');
+                refreshEvents();
+            }, 30000); // Refresh every 30 seconds
+        }
+    }
+    
+    function applyFilters() {
+        const eventFilter = document.getElementById('event-filter').value;
+        const nodeFilter = document.getElementById('node-filter').value;
+        const searchTerm = document.getElementById('search-input').value.toLowerCase();
+        
+        let visibleCount = 0;
+        
+        filteredEvents.forEach(event => {
+            let visible = true;
+            
+            // Apply event type filter
+            if (eventFilter && event.eventType !== eventFilter) {
+                visible = false;
+            }
+            
+            // Apply node filter
+            if (nodeFilter && event.nodeId !== nodeFilter) {
+                visible = false;
+            }
+            
+            // Apply search filter
+            if (searchTerm && !event.searchText.includes(searchTerm)) {
+                visible = false;
+            }
+            
+            // Show/hide row
+            if (visible) {
+                event.element.style.display = '';
+                visibleCount++;
+            } else {
+                event.element.style.display = 'none';
+            }
+        });
+        
+        updateVisibleCount(visibleCount);
+    }
+    
+    function sortEvents(column) {
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'desc';
+        }
+        
+        // Update sort icons
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            icon.className = 'bi bi-chevron-expand sort-icon';
+        });
+        
+        const activeHeader = document.querySelector(`[data-column="${column}"] .sort-icon`);
+        if (activeHeader) {
+            activeHeader.className = `bi bi-chevron-${currentSort.direction === 'asc' ? 'up' : 'down'} sort-icon`;
+        }
+        
+        // Sort the table
+        const tbody = document.getElementById('events-tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr')).sort((a, b) => {
+            let aVal, bVal;
+            
+            switch (column) {
+                case 'timestamp':
+                    aVal = parseFloat(a.dataset.timestamp);
+                    bVal = parseFloat(b.dataset.timestamp);
+                    break;
+                case 'node_id':
+                    aVal = a.dataset.nodeId;
+                    bVal = b.dataset.nodeId;
+                    break;
+                case 'event_type':
+                    aVal = a.dataset.eventType;
+                    bVal = b.dataset.eventType;
+                    break;
+                default:
+                    return 0;
+            }
+            
+            if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+        
+        // Reorder rows
+        rows.forEach(row => tbody.appendChild(row));
+        
+        WCSystem.NotificationManager.show(
+            `Sorted by ${column} (${currentSort.direction})`, 
+            'info', 
+            2000
+        );
+    }
+    
+    function updateVisibleCount(count = null) {
+        const visibleCountElement = document.getElementById('visible-count');
+        if (visibleCountElement) {
+            if (count === null) {
+                count = document.querySelectorAll('.event-row:not([style*="display: none"])').length;
+            }
+            visibleCountElement.textContent = count;
+        }
+    }
+    
+    function clearFilters() {
+        document.getElementById('event-filter').value = '';
+        document.getElementById('node-filter').value = '';
+        document.getElementById('search-input').value = '';
+        
+        // Show all rows
+        filteredEvents.forEach(event => {
+            event.element.style.display = '';
+        });
+        
+        updateVisibleCount();
+        WCSystem.NotificationManager.show('Filters cleared', 'info', 2000);
+    }
+    
+    function refreshEvents() {
+        // Show loading indicator
+        const refreshBtn = document.querySelector('[onclick="refreshEvents()"]');
+        if (refreshBtn) {
+            const originalText = refreshBtn.innerHTML;
+            refreshBtn.innerHTML = '<span class="loading-spinner"></span> Refreshing...';
+            refreshBtn.disabled = true;
+            
+            // Simulate refresh (in real app, this would fetch new data)
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+    }
+    
+    function exportEvents() {
+        try {
+            // Collect visible event data
+            const visibleRows = document.querySelectorAll('.event-row:not([style*="display: none"])');
+            const events = Array.from(visibleRows).map(row => {
+                const cells = row.querySelectorAll('td');
+                return {
+                    timestamp: cells[0].textContent.trim(),
+                    node: cells[1].textContent.trim(),
+                    eventType: cells[2].textContent.trim(),
+                    details: cells[3].textContent.trim()
+                };
+            });
+            
+            // Create CSV content
+            const headers = ['Timestamp', 'Node', 'Event Type', 'Details'];
+            const csvContent = [
+                headers.join(','),
+                ...events.map(event => [
+                    `"${event.timestamp}"`,
+                    `"${event.node}"`,
+                    `"${event.eventType}"`,
+                    `"${event.details}"`
+                ].join(','))
+            ].join('\n');
+            
+            // Download file
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `wc-events-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            WCSystem.NotificationManager.show(
+                `Exported ${events.length} events to CSV`, 
+                'success'
+            );
+        } catch (error) {
+            console.error('Export error:', error);
+            WCSystem.NotificationManager.show(
+                'Failed to export events', 
+                'error'
+            );
+        }
+    }
+    
+    function showEventDetails(eventData) {
+        try {
+            const data = JSON.parse(eventData);
+            const formattedData = JSON.stringify(data, null, 2);
+            
+            document.getElementById('event-details-content').textContent = formattedData;
+            
+            const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+            modal.show();
+        } catch (error) {
+            console.error('Error parsing event data:', error);
+            WCSystem.NotificationManager.show('Error displaying event details', 'error');
+        }
+    }
+    
+    // Cleanup when leaving page
+    window.addEventListener('beforeunload', function() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+    });
+    
+    // Enhanced CSS for events page
+    const eventsStyle = document.createElement('style');
+    eventsStyle.textContent = `
+        .sort-icon {
+            float: right;
+            margin-top: 2px;
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+        
+        .sortable:hover .sort-icon {
+            opacity: 1;
+        }
+        
+        .event-data {
+            max-width: 300px;
+            overflow: hidden;
+        }
+        
+        .event-data code {
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .fs-7 {
+            font-size: 0.75rem;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .event-row {
+            transition: all 0.2s ease;
+        }
+        
+        .event-row:hover {
+            background-color: var(--bs-primary-bg-subtle) !important;
+        }
+        
+        .relative-time {
+            font-size: 0.7rem;
+        }
+    `;
+    document.head.appendChild(eventsStyle);
+</script>
 {% endblock %}

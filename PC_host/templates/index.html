@@ -1,85 +1,255 @@
 {% extends 'layout.html' %}
 
+{% block title %}Dashboard - WC Control System{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <!-- Dashboard Header -->
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h1>WC Control System</h1>
-            <p class="lead">Monitoring and control panel for water closet nodes</p>
-        </div>
-        <div class="col-md-4 text-end">
-            <div class="d-flex justify-content-end align-items-center">
-                <div class="me-3">
-                    <span class="badge bg-success fs-5" id="mqtt-status">Connected</span>
-                </div>
-                <div>
-                    <span class="badge bg-primary fs-5">
-                        <span id="active-nodes">{{ nodes|selectattr('status', 'equalto', 'online')|list|length }}/{{ nodes|length }}</span> Nodes
+<!-- Dashboard Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="display-6 fw-bold mb-2">
+                    <i class="bi bi-speedometer2 me-3"></i>WC Control Dashboard
+                </h1>
+                <p class="text-muted mb-0">Control nodes and monitor system events</p>
+            </div>
+            <div class="text-end">
+                <button class="btn btn-outline-primary btn-sm" onclick="window.location.reload()" data-bs-toggle="tooltip" title="Refresh Dashboard">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+                <!-- Status indicator for real vs mock data -->
+                {% set online_nodes = nodes|selectattr('status', 'equalto', 'online')|list|length %}
+                {% if online_nodes > 0 %}
+                    <span class="badge bg-success ms-2" data-bs-toggle="tooltip" title="Real ESP32 devices connected">
+                        <i class="bi bi-wifi me-1"></i>{{ online_nodes }} Live
                     </span>
+                {% else %}
+                    <span class="badge bg-warning text-dark ms-2" data-bs-toggle="tooltip" title="No ESP32 devices connected - showing demo layout">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Demo Mode
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats Row -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card bg-primary text-white">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number">{{ nodes|length }}</div>
+                    <div class="stat-label">Total Nodes</div>
+                </div>
+                <div class="fs-2 opacity-75">
+                    <i class="bi bi-hdd-network"></i>
                 </div>
             </div>
         </div>
     </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card bg-success text-white">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number">{{ nodes|selectattr('status', 'equalto', 'online')|list|length }}</div>
+                    <div class="stat-label">Online</div>
+                </div>
+                <div class="fs-2 opacity-75">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card bg-danger text-white">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number">{{ nodes|selectattr('status', 'equalto', 'offline')|list|length }}</div>
+                    <div class="stat-label">Offline</div>
+                </div>
+                <div class="fs-2 opacity-75">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card bg-info text-white">
+            <div class="d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <div class="stat-number">{{ events|length }}</div>
+                    <div class="stat-label">Recent Events</div>
+                </div>
+                <div class="fs-2 opacity-75">
+                    <i class="bi bi-activity"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-    <!-- WC Nodes -->
-    <div class="row">
-        {% for node in nodes %}
-        <div class="col-md-4 mb-4">
-            <div class="card node-card" data-node-id="{{ node.id }}">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">{{ node.name }}</h5>
+<!-- Control Section -->
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="control-section">
+            <h2 class="control-header mb-3">
+                <i class="bi bi-toggles me-2"></i>Node Controls
+            </h2>
+            
+            {% if nodes %}
+                <form method="POST" id="nodeControlForm">
+                    <div class="nodes-control-grid">
+                        {% for node in nodes %}
+                        <div class="control-card {% if node.status == 'online' %}online{% else %}offline{% endif %}">
+                            <div class="control-icon">
+                                {% if node.node_type == 'male' %}
+                                    <img src="{{ url_for('static', filename='male.png') }}" alt="Male WC">
+                                {% elif node.node_type == 'female' %}
+                                    <img src="{{ url_for('static', filename='female.png') }}" alt="Female WC">
+                                {% else %}
+                                    <img src="{{ url_for('static', filename='male.png') }}" alt="WC">
+                                {% endif %}
+                            </div>
+                            
+                            <div class="control-info">
+                                <div class="control-name">{{ node.name or ('Node ' + node.node_id) }}</div>
+                                <div class="control-status">
+                                    <span class="status-indicator {% if node.status == 'online' %}online{% else %}offline{% endif %}"></span>
+                                    {{ node.status|title }}
+                                </div>
+                                <div class="control-location">{{ node.location or 'Unknown' }}</div>
+                            </div>
+                            
+                            <div class="control-action">
+                                <button type="submit" 
+                                        class="flush-button" 
+                                        name="node_id" 
+                                        value="{{ node.node_id }}"
+                                        {% if node.status != 'online' %}disabled{% endif %}>
+                                    <img src="{{ url_for('static', filename='button.png') }}" alt="FLUSH">
+                                </button>
+                            </div>
+                            
+                            <input type="hidden" name="action" value="flush">
+                        </div>
+                        {% endfor %}
+                    </div>
+                </form>
+            {% else %}
+                <div class="no-nodes-message">
+                    <i class="bi bi-exclamation-triangle fs-1 text-warning mb-3"></i>
+                    <h4>No Nodes Available</h4>
+                    <p class="text-muted">No WC nodes are currently registered in the system.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Events Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card events-section">
+            <div class="card-header bg-dark text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>System Events
+                    </h3>
                     <div class="d-flex align-items-center">
-                        <div class="status-indicator {% if node.status == 'online' %}bg-success{% else %}bg-danger{% endif %} me-2"></div>
-                        <span class="node-status">{{ node.status }}</span>
+                        <span class="badge bg-success me-3">
+                            <i class="bi bi-circle-fill me-1"></i>Live
+                        </span>
+                        <a href="/events" class="btn btn-outline-light btn-sm">
+                            <i class="bi bi-eye me-1"></i>View All
+                        </a>
                     </div>
                 </div>
-                <div class="card-body">
-                    <p><strong>Location:</strong> {{ node.location }}</p>
-                    <p><strong>Last Seen:</strong> <span class="last-seen" data-timestamp="{{ node.last_seen }}">{{ node.last_seen }}</span></p>
-                    
-                    <form action="/control/{{ node.id }}" method="post" class="mt-3">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" name="action" value="flush" class="btn btn-success w-100">
-                            <i class="fas fa-toilet"></i> Flush
-                        </button>
-                    </form>
-                </div>
             </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    <!-- Events Table -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0">Recent Events</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Node</th>
-                                <th>Event</th>
-                                <th>Data</th>
-                            </tr>
-                        </thead>
-                        <tbody id="events-table">
-                            {% for event in events %}
-                            <tr>
-                                <td><span class="event-time" data-timestamp="{{ event.timestamp }}">{{ event.timestamp }}</span></td>
-                                <td>{{ event.node_id }}</td>
-                                <td>{{ event.event_type }}</td>
-                                <td><code>{{ event.data|tojson }}</code></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    <a href="/events" class="btn btn-outline-primary">View All Events</a>
-                </div>
+            <div class="card-body p-0">
+                {% if events %}
+                    <div class="events-list">
+                        {% for event in events %}
+                        <div class="event-item d-flex align-items-center p-3 border-bottom">
+                            <div class="event-icon me-3">
+                                {% if event.event_type == 'web_command' %}
+                                    <div class="icon-circle bg-primary">
+                                        <i class="bi bi-cursor-fill text-white"></i>
+                                    </div>
+                                {% elif event.event_type == 'status_change' %}
+                                    <div class="icon-circle bg-warning">
+                                        <i class="bi bi-arrow-repeat text-white"></i>
+                                    </div>
+                                {% elif event.event_type == 'sensor_trigger' %}
+                                    <div class="icon-circle bg-info">
+                                        <i class="bi bi-activity text-white"></i>
+                                    </div>
+                                {% else %}
+                                    <div class="icon-circle bg-secondary">
+                                        <i class="bi bi-gear-fill text-white"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="event-content flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="event-title fw-bold">
+                                            {% if event.event_type == 'web_command' %}
+                                                <i class="bi bi-droplet me-1"></i>Flush Command
+                                            {% elif event.event_type == 'status_change' %}
+                                                <i class="bi bi-arrow-repeat me-1"></i>Status Change
+                                            {% elif event.event_type == 'sensor_trigger' %}
+                                                <i class="bi bi-activity me-1"></i>Sensor Activity
+                                            {% else %}
+                                                <i class="bi bi-gear me-1"></i>{{ event.event_type|title }}
+                                            {% endif %}
+                                        </div>
+                                        <div class="event-details text-muted">
+                                            <strong>Node:</strong> {{ event.node_id }} 
+                                            {% if event.data %}
+                                                | <strong>Action:</strong> {{ event.data.get('action', 'Unknown') }}
+                                                {% if event.data.get('success') is not none %}
+                                                    | <strong>Status:</strong> 
+                                                    {% if event.data.get('success') %}
+                                                        <span class="text-success">Success</span>
+                                                    {% else %}
+                                                        <span class="text-danger">Failed</span>
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="event-time text-muted small">
+                                        <i class="bi bi-clock me-1"></i>
+                                        <span class="timestamp" data-timestamp="{{ event.timestamp }}">
+                                            {% set time_diff = (current_time or 0) - (event.timestamp or 0) %}
+                                            {% if time_diff < 60 %}
+                                                Just now
+                                            {% elif time_diff < 3600 %}
+                                                {{ (time_diff / 60)|int }}m ago
+                                            {% elif time_diff < 86400 %}
+                                                {{ (time_diff / 3600)|int }}h ago
+                                            {% else %}
+                                                {{ (time_diff / 86400)|int }}d ago
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center p-5">
+                        <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+                        <h5 class="text-muted">No Events Yet</h5>
+                        <p class="text-muted">System events will appear here as they occur.</p>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -88,115 +258,77 @@
 
 {% block scripts %}
 <script>
-    // Format timestamps
-    function formatTime(timestamp) {
-        return new Date(timestamp * 1000).toLocaleString();
-    }
+// Format timestamps
+function formatTimestamp(timestamp) {
+    const now = Date.now() / 1000;
+    const diff = now - timestamp;
     
-    // Format all timestamps on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.last-seen').forEach(el => {
-            el.textContent = formatTime(parseFloat(el.dataset.timestamp));
-        });
-        
-        document.querySelectorAll('.event-time').forEach(el => {
-            el.textContent = formatTime(parseFloat(el.dataset.timestamp));
-        });
-        
-        // Connect to WebSocket for real-time updates
-        const socket = io();
-        
-        socket.on('connect', function() {
-            console.log('Connected to WebSocket');
-        });
-        
-        // Xử lý sự kiện new_event để hiển thị client IP
-        socket.on('new_event', function(event) {
-            console.log('New event received:', event);
-            
-            // Tạo row mới cho bảng events
-            const row = document.createElement('tr');
-            
-            // Format timestamp
-            const formattedTime = formatTime(event.timestamp);
-            
-            // Xác định nội dung hiển thị
-            let nodeId = event.node_id || 'system';
-            let eventType = event.event_type;
-            let eventDetails = '';
-            
-            // Định dạng đặc biệt cho client connect events
-            if (event.event_type === 'client_connect' && event.data && event.data.client_ip) {
-                nodeId = 'System';
-                eventType = 'Client Connected';
-                eventDetails = JSON.stringify({ip: event.data.client_ip});
-            } else if (event.data) {
-                eventDetails = JSON.stringify(event.data);
-            }
-            
-            // Tạo nội dung row
-            row.innerHTML = `
-                <td><span class="event-time" data-timestamp="${event.timestamp}">${formattedTime}</span></td>
-                <td>${nodeId}</td>
-                <td>${eventType}</td>
-                <td><code>${eventDetails}</code></td>
-            `;
-            
-            // Thêm vào đầu bảng events
-            const eventsTable = document.getElementById('events-table');
-            if (eventsTable) {
-                // Thêm row mới vào đầu bảng (sau header)
-                const firstRow = eventsTable.querySelector('tr');
-                if (firstRow) {
-                    eventsTable.insertBefore(row, firstRow);
-                } else {
-                    eventsTable.appendChild(row);
-                }
-                
-                // Giới hạn số row hiển thị (giữ 10 sự kiện gần nhất)
-                const rows = eventsTable.querySelectorAll('tr');
-                if (rows.length > 10) {
-                    eventsTable.removeChild(rows[rows.length - 1]);
-                }
-            }
-        });
-        
-        socket.on('status_update', function(data) {
-            console.log('Status update:', data);
-            const nodeCard = document.querySelector(`.node-card[data-node-id="${data.node_id}"]`);
-            if (nodeCard) {
-                const statusIndicator = nodeCard.querySelector('.status-indicator');
-                const statusText = nodeCard.querySelector('.node-status');
-                
-                if (data.status === 'online') {
-                    statusIndicator.classList.remove('bg-danger');
-                    statusIndicator.classList.add('bg-success');
-                } else {
-                    statusIndicator.classList.remove('bg-success');
-                    statusIndicator.classList.add('bg-danger');
-                }
-                
-                statusText.textContent = data.status;
-            }
-        });
-        
-        socket.on('command_update', function(data) {
-            console.log('Command update:', data);
-            // Refresh events table
-            fetch('/api/status')
-                .then(response => response.json())
-                .then(data => {
-                    // Update active nodes count
-                    const onlineNodes = data.nodes.filter(n => n.status === 'online').length;
-                    document.getElementById('active-nodes').textContent = `${onlineNodes}/${data.nodes.length}`;
-                });
-        });
-        
-        socket.on('disconnect', function() {
-            console.log('Disconnected from WebSocket');
-            document.getElementById('mqtt-status').className = 'badge bg-danger fs-5';
-            document.getElementById('mqtt-status').textContent = 'Disconnected';
-        });
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+}
+
+// Update all timestamps
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.timestamp').forEach(function(el) {
+        const timestamp = parseFloat(el.dataset.timestamp);
+        if (timestamp) {
+            el.textContent = formatTimestamp(timestamp);
+        }
     });
+    
+    // Auto refresh timestamps every minute
+    setInterval(function() {
+        document.querySelectorAll('.timestamp').forEach(function(el) {
+            const timestamp = parseFloat(el.dataset.timestamp);
+            if (timestamp) {
+                el.textContent = formatTimestamp(timestamp);
+            }
+        });
+    }, 60000);
+    
+    // Handle form submissions
+    document.getElementById('nodeControlForm')?.addEventListener('submit', function(e) {
+        const btn = e.submitter;
+        if (btn && btn.classList.contains('flush-button')) {
+            btn.classList.add('loading');
+            btn.disabled = true;
+            
+            // Re-enable after 3 seconds
+            setTimeout(() => {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }, 3000);
+        }
+    });
+});
+
+// Add loading animation
+const style = document.createElement('style');
+style.textContent = `
+.flush-button.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+.flush-button.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %}

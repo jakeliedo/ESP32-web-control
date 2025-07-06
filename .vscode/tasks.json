@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run WC Control System",
+			"type": "shell",
+			"command": "B:/Python/MicroPython/ESP_WC_System/PC_host/venv/Scripts/python.exe",
+			"args": [
+				"app.py"
+			],
+			"group": "build",
+			"isBackground": true,
+			"options": {
+				"cwd": "b:/Python/MicroPython/ESP_WC_System/PC_host"
+			},
+			"problemMatcher": []
+		}
+	]
+}

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WC Control - Simple</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #111;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            position: relative;
+            padding-bottom: 80px; /* Space for logo */
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            flex: 1;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .nodes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .node-card {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            border: 2px solid #444;
+            border-radius: 20px;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            min-height: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .node-card:hover {
+            transform: translateY(-2px);
+            border-color: #666;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.4);
+        }
+
+        .node-card.online {
+            border-color: #28a745;
+        }
+
+        .node-card.offline {
+            border-color: #dc3545;
+            opacity: 0.7;
+        }
+
+        .node-icon {
+            margin-bottom: 10px;
+        }
+
+        .node-icon img {
+            width: 50px;
+            height: 75px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .node-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .node-status {
+            font-size: 0.8rem;
+            margin-bottom: 15px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .status-online {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            border: 1px solid #28a745;
+        }
+
+        .status-offline {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+            border: 1px solid #dc3545;
+        }
+
+        .flush-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s ease;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .flush-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .flush-btn:active {
+            transform: scale(0.95);
+        }
+
+        .flush-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .flush-btn img {
+            width: 60px;
+            height: auto;
+            border-radius: 8px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .logo {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: auto;
+            z-index: 1000;
+            filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+        }
+
+        .no-nodes {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .no-nodes i {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .nodes-grid {
+                gap: 15px;
+            }
+            
+            .node-card {
+                padding: 15px 10px;
+                min-height: 180px;
+            }
+            
+            .node-icon img {
+                width: 40px;
+                height: 60px;
+            }
+            
+            .flush-btn img {
+                width: 50px;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .logo {
+                width: 40px;
+                bottom: 15px;
+                right: 15px;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            display: inline-block;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <button class="refresh-btn" onclick="window.location.reload()">
+        ↻ Refresh
+    </button>
+
+    <div class="header">
+        <h1>WC Control System</h1>
+        <p>Simple Control Interface</p>
+    </div>
+
+    <div class="container">
+        {% if nodes %}
+            <form method="POST" id="controlForm">
+                <div class="nodes-grid">
+                    {% for node in nodes %}
+                    <div class="node-card {% if node.status == 'online' %}online{% else %}offline{% endif %}">
+                        <div class="node-icon">
+                            {% if node.node_type == 'male' %}
+                                <img src="{{ url_for('static', filename='male.png') }}" alt="Male WC">
+                            {% elif node.node_type == 'female' %}
+                                <img src="{{ url_for('static', filename='female.png') }}" alt="Female WC">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='male.png') }}" alt="WC">
+                            {% endif %}
+                        </div>
+                        
+                        <div class="node-name">{{ node.name or ('Node ' + node.node_id) }}</div>
+                        
+                        <div class="node-status {% if node.status == 'online' %}status-online{% else %}status-offline{% endif %}">
+                            {{ node.status }}
+                        </div>
+                        
+                        <button type="submit" 
+                                class="flush-btn" 
+                                name="node_id" 
+                                value="{{ node.node_id }}"
+                                {% if node.status != 'online' %}disabled{% endif %}
+                                onclick="this.classList.add('loading')">
+                            <img src="{{ url_for('static', filename='button.png') }}" alt="FLUSH">
+                        </button>
+                        
+                        <input type="hidden" name="action" value="flush">
+                    </div>
+                    {% endfor %}
+                </div>
+            </form>
+        {% else %}
+            <div class="no-nodes">
+                <div style="font-size: 3rem; margin-bottom: 20px; opacity: 0.5;">🚽</div>
+                <h3>No Nodes Available</h3>
+                <p>No WC nodes are currently registered in the system.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Logo">
+
+    <script>
+        // Auto-refresh every 30 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 30000);
+
+        // Handle form submission with loading state
+        document.getElementById('controlForm')?.addEventListener('submit', function(e) {
+            const btn = e.submitter;
+            if (btn) {
+                btn.classList.add('loading');
+                setTimeout(() => {
+                    btn.classList.remove('loading');
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

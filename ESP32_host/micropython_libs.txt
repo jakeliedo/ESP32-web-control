@@ -1,0 +1,84 @@
+# MicroPython Libraries for ESP32 Remote Control
+# These libraries need to be uploaded to ESP32, not installed via pip
+
+# === Core MicroPython Libraries (Built-in) ===
+# machine          - Hardware control (GPIO, SPI, I2C, etc.)
+# network          - WiFi and network connectivity  
+# time             - Time and sleep functions
+# json             - JSON encoding/decoding
+# ubinascii        - Binary/ASCII conversion utilities
+# gc               - Garbage collection
+# os/uos           - Operating system interface
+
+# === External MicroPython Libraries ===
+# umqtt.simple     - Lightweight MQTT client
+#   Source: https://github.com/micropython/micropython-lib
+#   Location: lib/umqtt/simple.py
+
+# === Custom Project Libraries ===
+# st7789p3.py      - ST7789P3 TFT display driver (240x320)
+#   Location: lib/st7789p3.py
+#   Features: SPI communication, RGB565 colors, text rendering
+
+# simple_ui.py     - Simple UI framework for remote control
+#   Location: lib/simple_ui.py  
+#   Features: Headers, footers, node lists, popups
+
+# remote_control.py - MQTT remote control logic
+#   Location: lib/remote_control.py
+#   Features: MQTT wrapper, node management, heartbeat
+
+# === Configuration Files ===
+# config.py        - System configuration
+#   WiFi networks, MQTT settings, hardware pins, UI colors
+
+# boot.py          - Boot configuration
+#   Runs on ESP32 startup, system initialization
+
+# main.py          - Main application
+#   Entry point, hardware setup, main loop
+
+# === Upload Instructions ===
+# 
+# Method 1 - Using ampy:
+# ampy --port COM3 mkdir lib
+# ampy --port COM3 mkdir lib/umqtt  
+# ampy --port COM3 put lib/umqtt/simple.py lib/umqtt/simple.py
+# ampy --port COM3 put lib/st7789p3.py lib/st7789p3.py
+# ampy --port COM3 put lib/simple_ui.py lib/simple_ui.py
+# ampy --port COM3 put lib/remote_control.py lib/remote_control.py
+# ampy --port COM3 put config.py config.py
+# ampy --port COM3 put boot.py boot.py
+# ampy --port COM3 put main.py main.py
+#
+# Method 2 - Using Thonny IDE:
+# 1. Open Thonny
+# 2. Configure for MicroPython (ESP32)
+# 3. Upload files via File menu
+#
+# Method 3 - Using VS Code + Pymakr:
+# 1. Install Pymakr extension
+# 2. Configure pymakr.conf
+# 3. Use "Pymakr: Upload project" command
+#
+# === Library Dependencies ===
+# 
+# st7789p3.py requires:
+# - machine.Pin
+# - machine.SPI
+# - time
+#
+# simple_ui.py requires:
+# - st7789p3.py
+# - time
+#
+# remote_control.py requires:
+# - umqtt.simple
+# - json
+# - time
+#
+# main.py requires:
+# - All above libraries
+# - machine
+# - network
+# - ubinascii

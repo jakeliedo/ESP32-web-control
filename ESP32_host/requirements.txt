@@ -1,0 +1,68 @@
+# ESP32 Remote Control - Development Requirements
+# This file lists dependencies for development, testing, and deployment tools
+# Note: ESP32 runs MicroPython and doesn't use pip - these are for PC development
+
+# === Core Development Tools ===
+# MicroPython firmware flashing and file management
+esptool>=4.5.1              # Flash MicroPython firmware to ESP32
+adafruit-ampy>=1.1.0        # Upload files to ESP32 via serial
+mpfshell>=0.9.2             # Alternative file manager for MicroPython
+
+# === Code Development ===
+# Python linting and formatting (for code quality)
+pylint>=2.15.0              # Code analysis
+black>=22.0.0               # Code formatting
+isort>=5.10.0               # Import sorting
+
+# === Testing and Simulation ===
+# For testing MQTT functionality on PC
+paho-mqtt>=1.6.1            # MQTT client for testing
+pyserial>=3.5               # Serial communication for debugging
+requests>=2.28.0            # HTTP requests for testing web integration
+
+# === Documentation ===
+# For generating documentation
+markdown>=3.4.0             # Markdown processing
+mkdocs>=1.4.0               # Documentation site generator (optional)
+
+# === Optional Development Tools ===
+# VS Code Pymakr extension dependencies (automatically handled by VS Code)
+# jupyter>=1.0.0            # For interactive development notebooks (optional)
+# matplotlib>=3.5.0         # For data visualization during testing (optional)
+
+# === Hardware Simulation (Optional) ===
+# For testing UI components without hardware
+# pygame>=2.1.0             # For display simulation (optional)
+# pillow>=9.0.0             # Image processing for UI testing (optional)
+
+# === Network Tools ===
+# For network diagnostics and testing
+ping3>=4.0.0                # Network connectivity testing
+netifaces>=0.11.0           # Network interface information
+
+# ===================================================================
+# IMPORTANT NOTES:
+# ===================================================================
+# 
+# 1. ESP32 MicroPython Libraries (pre-installed on device):
+#    - umqtt.simple    (MQTT client)
+#    - machine         (Hardware control)
+#    - network         (WiFi networking)
+#    - time            (Time functions)
+#    - json            (JSON parsing)
+#    - ubinascii       (Binary/ASCII conversion)
+#
+# 2. Custom Libraries (included in project):
+#    - lib/st7789p3.py      (Display driver)
+#    - lib/simple_ui.py     (UI framework)
+#    - lib/remote_control.py (Remote control logic)
+#
+# 3. Installation on PC (for development):
+#    pip install -r requirements.txt
+#
+# 4. ESP32 Setup (no pip needed):
+#    - Flash MicroPython firmware
+#    - Upload project files via ampy/Thonny/VS Code
+#    - Files are executed directly on ESP32
+#
+# ===================================================================

@@ -1,0 +1,14 @@
+{
+  "wifi": {
+    "ssid": "YOUR_WIFI_SSID",
+    "password": "YOUR_WIFI_PASSWORD"
+  },
+  "mqtt": {
+    "broker": "192.168.1.10",
+    "port": 1883,
+    "topics": {
+      "commands": "wc/commands/{node_id}",
+      "status": "wc/status/{node_id}"
+    }
+  }
+}

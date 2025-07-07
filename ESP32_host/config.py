@@ -45,19 +45,12 @@ WC_NODES = [
 
 # === Hardware Pin Configuration ===
 # ST7789P3 Display
-SPI_SCLK = 18
-SPI_MOSI = 23
-SPI_CS = 5
+SPI_SCLK = 14   #
+SPI_MOSI = 13
+SPI_CS = 15
 DC_PIN = 2
-RST_PIN = 4
-BL_PIN = 15
-
-# Control Buttons
-BTN_UP = 32
-BTN_DOWN = 33
-BTN_LEFT = 25
-BTN_RIGHT = 26
-BTN_SELECT = 27
+RST_PIN = 3
+# BL_PIN không sử dụng vì backlight đã mặc định nối nguồn
 
 # Status LED
 STATUS_LED = 22

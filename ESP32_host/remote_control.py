@@ -12,19 +12,11 @@ import ubinascii
 
 # === Hardware Configuration ===
 # ST7789P3 3.2" Display connections
-SPI_SCLK = 18   # Serial Clock
-SPI_MOSI = 23   # Master Out Slave In
-SPI_CS = 5      # Chip Select
+SPI_SCLK = 14   # Serial Clock
+SPI_MOSI = 13   # Master Out Slave In
+SPI_CS = 15     # Chip Select
 DC_PIN = 2      # Data/Command
-RST_PIN = 4     # Reset
-BL_PIN = 15     # Backlight
-
-# Physical buttons
-BTN_UP = 32
-BTN_DOWN = 33
-BTN_LEFT = 25
-BTN_RIGHT = 26
-BTN_SELECT = 27
+RST_PIN = 3     # Reset
 
 # Status LED
 STATUS_LED = 22
@@ -51,20 +43,9 @@ print("🔧 Initializing hardware...")
 # === Hardware Initialization ===
 from machine import Pin, SPI, Timer
 
-# Initialize buttons
-btn_up = Pin(BTN_UP, Pin.IN, Pin.PULL_UP)
-btn_down = Pin(BTN_DOWN, Pin.IN, Pin.PULL_UP)
-btn_left = Pin(BTN_LEFT, Pin.IN, Pin.PULL_UP)
-btn_right = Pin(BTN_RIGHT, Pin.IN, Pin.PULL_UP)
-btn_select = Pin(BTN_SELECT, Pin.IN, Pin.PULL_UP)
-
 # Initialize status LED
 status_led = Pin(STATUS_LED, Pin.OUT)
 status_led.off()
-
-# Initialize backlight
-backlight = Pin(BL_PIN, Pin.OUT)
-backlight.on()  # Turn on backlight
 
 print("✅ Hardware initialized")
 
@@ -76,10 +57,6 @@ selected_node = 0  # Currently selected node (0-3)
 nodes_status = ["offline", "offline", "offline", "offline"]
 node_names = ["Room1 (M)", "Room2 (M)", "Room1 (F)", "Room2 (F)"]
 node_ids = ["wc_male_01", "wc_male_02", "wc_female_01", "wc_female_02"]
-
-# Button state tracking
-last_button_time = 0
-BUTTON_DEBOUNCE = 200  # ms
 
 # === Display Functions (Simplified for now) ===
 def init_display():
@@ -193,31 +170,6 @@ def mqtt_callback(topic, message):
         print(f"❌ Error processing MQTT message: {e}")
 
 # === Button Handling ===
-def check_buttons():
-    """Check button presses and handle UI navigation"""
-    global selected_node, last_button_time
-    
-    current_time = time.ticks_ms()
-    if current_time - last_button_time < BUTTON_DEBOUNCE:
-        return
-    
-    # Check each button
-    if not btn_up.value():  # Button pressed (active low)
-        selected_node = (selected_node - 1) % len(node_names)
-        last_button_time = current_time
-        print(f"⬆️ Selected: {node_names[selected_node]}")
-        update_display()
-        
-    elif not btn_down.value():
-        selected_node = (selected_node + 1) % len(node_names)
-        last_button_time = current_time
-        print(f"⬇️ Selected: {node_names[selected_node]}")
-        update_display()
-        
-    elif not btn_select.value():
-        send_flush_command()
-        last_button_time = current_time
-
 def send_flush_command():
     """Send flush command to selected node"""
     if not mqtt_connected:
@@ -295,9 +247,6 @@ def main():
             # Check for MQTT messages
             if mqtt_client and mqtt_connected:
                 mqtt_client.check_msg()
-            
-            # Check button presses
-            check_buttons()
             
             # Periodic status updates (every 30 seconds)
             current_time = time.time()

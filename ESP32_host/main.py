@@ -13,22 +13,16 @@ from machine import Pin, SPI
 from lib.st7789p3 import ST7789P3
 from lib.simple_ui import SimpleUI
 from lib.remote_control import RemoteControl
+from lib.xpt2046 import XPT2046
 
 # === Hardware Configuration ===
 # ST7789P3 3.2" Display connections
-SPI_SCLK = 18   # Serial Clock
-SPI_MOSI = 23   # Master Out Slave In
-SPI_CS = 5      # Chip Select
+SPI_SCLK = 14   # Serial Clock
+SPI_MOSI = 13   # Master Out Slave In
+SPI_CS = 15     # Chip Select
 DC_PIN = 2      # Data/Command
-RST_PIN = 4     # Reset
-BL_PIN = 15     # Backlight
-
-# Physical buttons
-BTN_UP = 32
-BTN_DOWN = 33
-BTN_LEFT = 25
-BTN_RIGHT = 26
-BTN_SELECT = 27
+RST_PIN = 3     # Reset
+# BL_PIN không sử dụng vì backlight đã mặc định nối nguồn
 
 # Status LED
 STATUS_LED = 22
@@ -71,13 +65,6 @@ remote_control = None
 
 # === Hardware Initialization ===
 
-# Initialize buttons
-btn_up = Pin(BTN_UP, Pin.IN, Pin.PULL_UP)
-btn_down = Pin(BTN_DOWN, Pin.IN, Pin.PULL_UP)
-btn_left = Pin(BTN_LEFT, Pin.IN, Pin.PULL_UP)
-btn_right = Pin(BTN_RIGHT, Pin.IN, Pin.PULL_UP)
-btn_select = Pin(BTN_SELECT, Pin.IN, Pin.PULL_UP)
-
 # Initialize status LED
 status_led = Pin(STATUS_LED, Pin.OUT)
 status_led.off()
@@ -85,8 +72,8 @@ status_led.off()
 # Initialize SPI for display
 spi = SPI(2, baudrate=40000000, sck=Pin(SPI_SCLK), mosi=Pin(SPI_MOSI))
 
-# Initialize display
-display = ST7789P3(spi, SPI_CS, DC_PIN, RST_PIN, BL_PIN)
+# Initialize display (không truyền BL_PIN)
+display = ST7789P3(spi, SPI_CS, DC_PIN, RST_PIN)
 display.init()
 print("📺 Display initialized")
 
@@ -99,6 +86,17 @@ for node in WC_NODES:
     node_status[node["id"]] = {"status": "offline", "last_seen": 0}
 
 print("✅ Hardware initialized")
+
+# === Touch XPT2046 Configuration ===
+TP_CLK   = 25    # TP_CLK   -> IO25
+TP_CS    = 33    # TP_CS    -> IO33
+TP_DIN   = 32    # TP_DIN   -> IO32
+TP_DOUT  = 39    # TP_DOUT  -> IO39
+TP_IRQ   = 36    # TP_IRQ   -> IO36
+
+# Initialize SPI for touch
+spi_touch = SPI(1, baudrate=1000000, sck=Pin(TP_CLK), mosi=Pin(TP_DIN), miso=Pin(TP_DOUT))
+touch = XPT2046(spi_touch, cs=Pin(TP_CS), irq=Pin(TP_IRQ))
 
 def show_startup_screen():
     """Show startup splash screen"""
@@ -215,33 +213,6 @@ def send_flush_command(node):
         ui.show_message("Error!", 2000)
         return False
 
-def handle_button_press():
-    """Handle button press events"""
-    global current_selection
-    
-    # Button debouncing
-    time.sleep(0.1)
-    
-    if not btn_up.value():  # UP pressed (active low)
-        current_selection = (current_selection - 1) % len(WC_NODES)
-        print(f"⬆️  Selection: {WC_NODES[current_selection]['name']}")
-        update_main_screen()
-        return True
-    
-    if not btn_down.value():  # DOWN pressed
-        current_selection = (current_selection + 1) % len(WC_NODES)
-        print(f"⬇️  Selection: {WC_NODES[current_selection]['name']}")
-        update_main_screen()
-        return True
-    
-    if not btn_select.value():  # SELECT pressed
-        selected_node = WC_NODES[current_selection]
-        print(f"✅ Selected: {selected_node['name']}")
-        send_flush_command(selected_node)
-        return True
-    
-    return False
-
 def update_main_screen():
     """Update the main screen display"""
     ui.clear_screen()
@@ -284,96 +255,66 @@ def connect_mqtt():
         mqtt_connected = False
         return False
 
+def check_touch_flush():
+    """Check if touch is in any FLUSH button area and trigger flush command for the correct node"""
+    if touch.touched():
+        x, y = touch.get_touch()
+        # Định nghĩa vùng cảm ứng cho từng nút FLUSH (chỉnh lại theo UI thực tế)
+        FLUSH_BTN_AREAS = [
+            (60, 60, 180, 120),   # Node 0 (Room1 Male)
+            (60, 140, 180, 200),  # Node 1 (Room1 Female)
+            (60, 220, 180, 280),  # Node 2 (Room2 Male)
+        ]
+        for idx, area in enumerate(FLUSH_BTN_AREAS):
+            if area[0] <= x <= area[2] and area[1] <= y <= area[3]:
+                selected_node = WC_NODES[idx]
+                print(f"🖐️ Touch FLUSH button for {selected_node['name']} at ({x},{y})")
+                send_flush_command(selected_node)
+                time.sleep(0.5)  # Debounce touch
+                break
+
 def main_loop():
     """Main application loop"""
     global last_heartbeat
-    
     print("🚀 Starting main loop...")
-    
-    # Show main screen
     update_main_screen()
-    
     loop_count = 0
-    
     while True:
         try:
             # Check for MQTT messages
             if remote_control and remote_control.is_connected():
                 remote_control.check_messages()
-            
-            # Handle button presses
-            if handle_button_press():
-                time.sleep(0.3)  # Debounce delay
-            
+            # Handle touch FLUSH
+            check_touch_flush()
             # Send heartbeat every 30 seconds
             if remote_control and remote_control.should_send_heartbeat():
                 selected_node_id = WC_NODES[current_selection]["id"] if WC_NODES else None
-                if remote_control.send_heartbeat(selected_node_id):
-                    # Update connection status on display
-                    update_main_screen()
+                remote_control.send_heartbeat(selected_node_id)
+                last_heartbeat = time.time()
             
-            # Periodic status LED blink
-            if loop_count % 100 == 0:
-                status_led.on()
-                time.sleep(0.05)
-                status_led.off()
-            
-            loop_count += 1
+            # Throttle loop speed
             time.sleep(0.1)
+            loop_count += 1
             
+            # Update display every 5 loops (khoảng 0.5 giây)
+            if loop_count >= 5:
+                update_main_screen()
+                loop_count = 0
+        
         except Exception as e:
             print(f"❌ Main loop error: {e}")
-            status_led.on()  # Indicate error
             time.sleep(1)
-            status_led.off()
-            
-            # Try to reconnect if MQTT disconnected
-            if remote_control and not remote_control.is_connected():
-                print("🔄 Attempting MQTT reconnection...")
-                if remote_control.reconnect():
-                    print("✅ MQTT reconnected")
-                    remote_control.subscribe_to_nodes(WC_NODES)
-                else:
-                    print("❌ MQTT reconnection failed")
 
-def main():
-    """Main application entry point"""
-    global last_heartbeat
-    
-    # Show startup screen
-    show_startup_screen()
-    time.sleep(2)
-    
-    # Connect to WiFi
-    connected, ip = connect_wifi()
-    if not connected:
-        ui.show_message("WiFi Failed!", 5000)
-        return
-    
-    time.sleep(1)
-    
-    # Connect to MQTT
-    if not connect_mqtt():
-        ui.show_message("MQTT Failed!", 5000)
-        return
-    
-    time.sleep(1)
-    
-    # Initialize heartbeat timer
-    last_heartbeat = time.time()
-    
-    # Show success message
-    ui.show_message("System Ready!", 2000)
-    
-    # Start main loop
-    main_loop()
+# === Application Entry Point ===
 
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n🛑 Program interrupted by user")
-    except Exception as e:
-        print(f"❌ Fatal error: {e}")
-        # Keep LED on to indicate error
-        status_led.on()
+# Show startup screen
+show_startup_screen()
+
+# Connect to WiFi
+wifi_result, ip_address = connect_wifi()
+
+# Connect to MQTT broker
+mqtt_result = connect_mqtt()
+
+# Start main loop
+main_loop()

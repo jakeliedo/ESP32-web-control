@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MQTT Configuration
-MQTT_BROKER = os.getenv("MQTT_BROKER", "192.168.1.182")
+MQTT_BROKER = os.getenv("MQTT_BROKER", "192.168.1.181")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
@@ -19,6 +19,10 @@ PORT = int(os.getenv("PORT", 5000))
 
 # Database Configuration
 DB_PATH = os.getenv("DB_PATH", "wc_system.db")
+DATABASE_PATH = DB_PATH  # Alias for compatibility
+
+# Web Configuration
+WEB_PORT = PORT  # Alias for web port
 
 # WC System Configuration
 WC_NODES = {

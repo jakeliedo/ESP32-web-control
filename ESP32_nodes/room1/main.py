@@ -8,7 +8,7 @@ import json
 NODE_ID = 'wc_male_01'  # Matches Room1 (Male WC)
 NODE_TYPE = 'male'
 ROOM_NAME = 'Room 1'
-MQTT_BROKER = '192.168.1.182'  # PC host IP address
+MQTT_BROKER = '192.168.1.181'  # PC host IP address (updated)
 MQTT_PORT = 1883
 
 # === GPIO Setup ===
@@ -120,45 +120,45 @@ def execute_flush():
     print(f"[{NODE_ID}] ✅ Relay activated: {relay.value()}")
     print(f"[{NODE_ID}] ✅ Indicator LED activated: {indicator_led.value()}")
     
-    # Start status LED blinking
-    blink_count = 20  # Blink for 4 seconds (20 x 200ms)
-    print(f"[{NODE_ID}] 💡 Starting LED blink sequence ({blink_count} blinks)...")
-    start_status_blink()
+    # Blink LED for exactly 4 seconds using direct timing
+    print(f"[{NODE_ID}] 💡 Starting LED blink sequence for 4 seconds...")
+    blink_led_4_seconds()
     
     # Set auto-off timer (5 seconds)
     if relay_timer:
         relay_timer.deinit()
-    relay_timer = Timer(-1)
+    relay_timer = Timer(0)  # Use timer 0 instead of -1
     relay_timer.init(period=5000, mode=Timer.ONE_SHOT, callback=stop_relay)
     print(f"[{NODE_ID}] ⏰ 5-second auto-off timer started")
     
     # Send confirmation back to server
-    publish_response("flush", True, "Flush executed successfully")
+    publish_response("flush", True, "Flush executed successfully - LED blinking for 4 seconds")
     
     print(f"[{NODE_ID}] 🎉 FLUSH COMMAND COMPLETED!")
 
-# === Status LED Blinking ===
-def start_status_blink():
-    global blink_count, blink_timer
-    if blink_count > 0:
-        # Toggle LED state
-        current_state = status_led.value()
-        status_led.value(not current_state)
-        blink_count -= 1
+# === LED Blinking for 4 seconds ===
+def blink_led_4_seconds():
+    """Blink LED for exactly 4 seconds (20 blinks at 200ms each)"""
+    print(f"[{NODE_ID}] 💡 Starting 4-second LED blink sequence...")
+    
+    # Blink 20 times with 200ms on/off = 4 seconds total
+    for i in range(20):
+        # Turn LED ON (0 = ON for ESP32 built-in LED)
+        status_led.value(0)
+        print(f"[{NODE_ID}] 💡 LED ON - blink {i+1}/20")
+        time.sleep_ms(100)  # ON for 100ms
         
-        print(f"[{NODE_ID}] 💡 LED blinking... {blink_count} blinks remaining")
+        # Turn LED OFF (1 = OFF for ESP32 built-in LED) 
+        status_led.value(1)
+        print(f"[{NODE_ID}] 💡 LED OFF - blink {i+1}/20")
+        time.sleep_ms(100)  # OFF for 100ms
         
-        # Schedule next blink
-        if blink_timer:
-            blink_timer.deinit()
-        blink_timer = Timer(-1)
-        blink_timer.init(period=200, mode=Timer.ONE_SHOT, callback=lambda t: start_status_blink())
-    else:
-        status_led.value(1)  # OFF (inverted on ESP32)
-        print(f"[{NODE_ID}] ✅ LED blinking completed")
-        if blink_timer:
-            blink_timer.deinit()
-            blink_timer = None
+        # Total: 100ms ON + 100ms OFF = 200ms per blink
+        # 20 blinks × 200ms = 4000ms = 4 seconds
+    
+    # Ensure LED is OFF at the end
+    status_led.value(1)
+    print(f"[{NODE_ID}] ✅ LED blinking completed - 4 seconds finished")
 
 # === Stop Relay ===
 def stop_relay(timer_obj=None):
@@ -271,32 +271,45 @@ def main():
         return
     
     print(f"[{NODE_ID}] 🎉 {ROOM_NAME} ESP32 Node is ready!")
-    print(f"[{NODE_ID}] 💡 LED will blink when flush command is received")
+    print(f"[{NODE_ID}] 💡 LED will blink for 4 seconds when flush command is received")
+    print(f"[{NODE_ID}] 📡 Status will be published every 10 seconds")
     
     # Main loop
     last_status_time = 0
+    loop_count = 0
     while True:
         try:
-            # Check for MQTT messages
+            # Check for MQTT messages every 100ms for responsiveness
             if mqtt_client:
                 mqtt_client.check_msg()
             
-            # Send periodic status updates (every 30 seconds)
+            # Send periodic status updates (every 10 seconds instead of 30)
             current_time = time.time()
-            if current_time - last_status_time > 30:
+            if current_time - last_status_time > 10:
+                print(f"[{NODE_ID}] 📊 Publishing status update #{int(current_time/10)}")
                 publish_status()
                 last_status_time = current_time
             
+            # Short sleep for responsiveness
             time.sleep_ms(100)
             
+            # Debug info every 50 loops (5 seconds)
+            loop_count += 1
+            if loop_count % 50 == 0:
+                wifi_status = "connected" if wifi_connected else "disconnected"
+                mqtt_status = "connected" if mqtt_connected else "disconnected"
+                print(f"[{NODE_ID}] 🔄 Status: WiFi={wifi_status}, MQTT={mqtt_status}, Relay={relay.value()}")
+            
         except Exception as e:
-            print(f"[{NODE_ID}] Error in main loop: {e}")
+            print(f"[{NODE_ID}] ❌ Error in main loop: {e}")
             time.sleep(1)
             
             # Try to reconnect if connection lost
             if not wifi_connected:
+                print(f"[{NODE_ID}] 🔄 Attempting WiFi reconnect...")
                 connect_wifi()
             if wifi_connected and not mqtt_connected:
+                print(f"[{NODE_ID}] 🔄 Attempting MQTT reconnect...")
                 connect_mqtt()
 
 # === Start the node ===

@@ -277,22 +277,42 @@ def get_nodes_with_mock_data():
     """Get nodes from database, fallback to mock data if empty. Limit to 4 nodes maximum."""
     try:
         real_nodes = get_all_nodes()
+        current_time = time.time()
+        
         if real_nodes and len(real_nodes) > 0:
-            # We have real ESP32 nodes connected
-            print(f"📡 Using REAL node data: {len(real_nodes)} ESP32 devices connected")
-            # Limit to first 4 nodes and ensure they have required fields
+            # Check which nodes are actually online (seen within last 30 seconds)
+            online_nodes = []
+            for node in real_nodes:
+                last_seen = node.get('last_seen', 0)
+                time_since_seen = current_time - last_seen
+                
+                # Node is considered online only if seen within last 30 seconds
+                if time_since_seen < 30:
+                    node['status'] = 'online'
+                    online_nodes.append(node)
+                    print(f"📡 Node {node.get('id', 'unknown')} is ONLINE (last seen {time_since_seen:.1f}s ago)")
+                else:
+                    node['status'] = 'offline'  # Force offline if not seen recently
+                    print(f"⚠️ Node {node.get('id', 'unknown')} is OFFLINE (last seen {time_since_seen:.1f}s ago)")
+            
+            # Add required fields for templates
             for node in real_nodes[:4]:
                 if 'node_type' not in node:
-                    # Extract node_type from node_id if missing
                     if 'male' in node.get('id', ''):
                         node['node_type'] = 'male'
                     elif 'female' in node.get('id', ''):
                         node['node_type'] = 'female'
                     else:
                         node['node_type'] = 'unknown'
+                
+                # Ensure node_id field exists for templates
+                if 'node_id' not in node and 'id' in node:
+                    node['node_id'] = node['id']
+            
+            print(f"📊 Real nodes status: {len(online_nodes)} online, {len(real_nodes) - len(online_nodes)} offline")
             return real_nodes[:4]
         else:
-            print("⚠️  No ESP32 devices connected - Using MOCK data (all offline)")
+            print("⚠️ No ESP32 devices found in database - Using MOCK data (all offline)")
             return MOCK_NODES[:4]
     except Exception as e:
         print(f"❌ Error getting nodes from database, using mock data: {e}")
@@ -311,39 +331,49 @@ def get_events_with_mock_data(limit=10):
         print(f"Error getting events from database, using mock data: {e}")
         return MOCK_EVENTS[:limit]
 
-# Routes
 @app.route('/', methods=['GET', 'POST'])
 def dashboard():
     """Main dashboard page with Node and Events data"""
     if request.method == 'POST':
+        print(f"\n🔍 DASHBOARD POST REQUEST RECEIVED!")
+        print(f"🔍 Form data: {dict(request.form)}")
+        print(f"🔍 Request headers: {dict(request.headers)}")
+        
         # Handle control actions from dashboard
         node_id = request.form.get('node_id')
         action = request.form.get('action', 'flush')
         
+        print(f"🔍 Extracted values:")
+        print(f"   - node_id: '{node_id}'")
+        print(f"   - action: '{action}'")
+        
         if node_id:
             try:
                 # Publish command to MQTT
+                print(f"🚀 Publishing MQTT command: {action} to node {node_id}")
                 success = mqtt_handler.publish_command(node_id, action)
                 
                 # Log the action in our database
                 log_event(node_id, "web_command", {"action": action, "success": success, "ui": "dashboard"})
                 
-                print(f"Dashboard: Sent {action} to node {node_id}, success: {success}")
+                print(f"✅ Dashboard: Sent {action} to node {node_id}, success: {success}")
                 
             except Exception as e:
-                print(f"Error in dashboard control: {e}")
+                print(f"❌ Error in dashboard control: {e}")
+        else:
+            print(f"⚠️ Dashboard: No node_id received in form data")
         
         return redirect(url_for('dashboard'))
     
     # GET request - show the dashboard
     try:
         nodes = get_nodes_with_mock_data()
-        print(f"DEBUG: Found {len(nodes)} nodes in database")
+        print(f"🔍 Dashboard rendering: Found {len(nodes)} nodes")
         events = get_events_with_mock_data(20)  # Get 20 most recent events for dashboard
         current_time = time.time()
         return render_template('index.html', nodes=nodes, events=events, current_time=current_time)
     except Exception as e:
-        print(f"Error rendering dashboard: {e}")
+        print(f"❌ Error rendering dashboard: {e}")
         # Fall back to simple template if templates not found
         return render_template_string(HTML)
 
@@ -351,30 +381,41 @@ def dashboard():
 def simple_index():
     """Mobile-optimized simple UI with 2x2 grid layout"""
     if request.method == "POST":
+        print(f"\n🔍 SIMPLE UI POST REQUEST RECEIVED!")
+        print(f"🔍 Form data: {dict(request.form)}")
+        
         node_id = request.form.get("node_id")
         action = request.form.get("action", "flush")
+        
+        print(f"🔍 Extracted values:")
+        print(f"   - node_id: '{node_id}'")
+        print(f"   - action: '{action}'")
         
         if node_id:
             try:
                 # Publish command to MQTT
+                print(f"🚀 Publishing MQTT command: {action} to node {node_id}")
                 success = mqtt_handler.publish_command(node_id, action)
                 
                 # Log the action in our database
                 log_event(node_id, "web_command", {"action": action, "success": success, "ui": "simple"})
                 
-                print(f"Simple UI: Sent {action} to node {node_id}, success: {success}")
+                print(f"✅ Simple UI: Sent {action} to node {node_id}, success: {success}")
                 
             except Exception as e:
-                print(f"Error in simple UI control: {e}")
+                print(f"❌ Error in simple UI control: {e}")
+        else:
+            print(f"⚠️ Simple UI: No node_id received in form data")
         
         return redirect("/simple")
     
     # GET request - show the simple UI
     try:
         nodes = get_nodes_with_mock_data()
+        print(f"🔍 Simple UI rendering: Found {len(nodes)} nodes")
         return render_template('simple.html', nodes=nodes)
     except Exception as e:
-        print(f"Error rendering simple UI: {e}")
+        print(f"❌ Error rendering simple UI: {e}")
         # Fall back to old HTML template if simple.html not found
         return render_template_string(HTML)
 

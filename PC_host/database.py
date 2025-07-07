@@ -54,13 +54,20 @@ def get_all_nodes():
     cursor.execute('SELECT * FROM nodes WHERE id != ?', ('pc_host',))
     nodes = [dict(row) for row in cursor.fetchall()]
     
-    # Parse JSON data
+    # Parse JSON data and check if nodes are truly online
+    current_time = time.time()
     for node in nodes:
         if node.get('data'):
             try:
                 node['data'] = json.loads(node['data'])
             except:
                 node['data'] = {}
+        
+        # Mark node as offline if last_seen is more than 30 seconds ago
+        if node['last_seen'] and (current_time - node['last_seen']) > 30:
+            node['status'] = 'offline'
+        elif not node['last_seen']:
+            node['status'] = 'offline'
     
     conn.close()
     return nodes

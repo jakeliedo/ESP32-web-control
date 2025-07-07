@@ -382,7 +382,71 @@ const App = {
     },
 
     enhanceForms() {
-        document.querySelectorAll('form').forEach(form => {
+        // Handle node control form with AJAX
+        const nodeControlForm = document.getElementById('nodeControlForm');
+        if (nodeControlForm) {
+            nodeControlForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const submitBtn = e.submitter || e.target.querySelector('button[type="submit"]:focus');
+                const nodeId = submitBtn?.value;
+                const action = e.target.querySelector('input[name="action"]')?.value || 'flush';
+                
+                if (!nodeId) {
+                    NotificationManager.show('error', 'No node selected');
+                    return;
+                }
+                
+                // Show loading state
+                if (submitBtn) {
+                    submitBtn.classList.add('loading');
+                    submitBtn.disabled = true;
+                    const originalHtml = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<span class="loading-spinner"></span>';
+                }
+                
+                try {
+                    // Send AJAX request
+                    const response = await fetch('/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: new URLSearchParams({
+                            node_id: nodeId,
+                            action: action
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        NotificationManager.show('success', `${action.toUpperCase()} command sent to ${nodeId}`);
+                        
+                        // Refresh dashboard data after 2 seconds
+                        setTimeout(() => {
+                            if (typeof refreshDashboard === 'function') {
+                                refreshDashboard();
+                            }
+                        }, 2000);
+                    } else {
+                        NotificationManager.show('error', 'Failed to send command');
+                    }
+                } catch (error) {
+                    console.error('Command error:', error);
+                    NotificationManager.show('error', 'Network error occurred');
+                } finally {
+                    // Reset button state
+                    if (submitBtn) {
+                        submitBtn.classList.remove('loading');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<img src="/static/button.png" alt="FLUSH">';
+                    }
+                }
+            });
+        }
+        
+        // Handle other forms with generic loading state
+        document.querySelectorAll('form:not(#nodeControlForm)').forEach(form => {
             form.addEventListener('submit', function(e) {
                 const submitBtn = form.querySelector('button[type="submit"]');
                 if (submitBtn && !submitBtn.disabled) {

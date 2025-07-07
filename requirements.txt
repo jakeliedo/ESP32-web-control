@@ -1,3 +1,72 @@
-flask==2.3.3
+# ===================================
+# WC Control System - Requirements
+# ===================================
+# Đây là file requirements.txt đầy đủ cho WC Control System
+# Chạy: pip install -r requirements.txt
+
+# Web Framework
+flask==3.0.0
 flask-socketio==5.3.6
+werkzeug==3.0.1
+
+# MQTT Communication
 paho-mqtt==1.6.1
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# HTTP Requests
+requests==2.31.0
+
+# Development Tools (optional)
+pylint==3.0.3
+black==23.12.1
+pytest==7.4.3
+
+# System utilities
+psutil==5.9.6
+
+# Database (SQLite is built-in with Python)
+# For advanced database features (optional):
+# sqlalchemy==2.0.23
+
+# ESP32 Development Tools (for development/upload)
+# esptool==4.7.0
+# ampy==1.1.0
+# pyserial==3.5
+
+# ===================================
+# Built-in Python modules used:
+# ===================================
+# - sqlite3 (built-in)
+# - threading (built-in)  
+# - time (built-in)
+# - json (built-in)
+# - os (built-in)
+# - uuid (built-in)
+# - subprocess (built-in)
+# - socket (built-in)
+# - platform (built-in)
+# - datetime (built-in)
+# - sys (built-in)
+# - atexit (built-in)
+# - webbrowser (built-in)
+
+# ===================================
+# Optional dependencies:
+# ===================================
+# Uncomment below for additional features:
+
+# For enhanced development:
+# autopep8==2.0.4
+# flake8==6.1.0
+
+# For production deployment:
+# gunicorn==21.2.0
+# nginx (install separately)
+
+# For monitoring:
+# prometheus-client==0.19.0
+
+# For logging:
+# loguru==0.7.2

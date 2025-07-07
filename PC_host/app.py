@@ -8,7 +8,7 @@ import uuid
 import requests
 
 # Import modules
-from config import DEBUG, SECRET_KEY, HOST, PORT
+from config import DEBUG, SECRET_KEY, HOST, PORT, MQTT_BROKER, MQTT_PORT
 from mqtt_handler import MQTTHandler
 from database import get_all_nodes, get_recent_events, log_event, update_node_status
 
@@ -358,11 +358,39 @@ def dashboard():
                 
                 print(f"✅ Dashboard: Sent {action} to node {node_id}, success: {success}")
                 
+                # Return JSON response for AJAX requests
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'success': success,
+                        'message': f'{action.upper()} command sent to {node_id}',
+                        'node_id': node_id,
+                        'action': action,
+                        'timestamp': time.time()
+                    })
+                
             except Exception as e:
                 print(f"❌ Error in dashboard control: {e}")
+                
+                # Return error JSON for AJAX requests
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'success': False,
+                        'message': f'Error sending command: {str(e)}',
+                        'node_id': node_id,
+                        'action': action
+                    }), 500
         else:
             print(f"⚠️ Dashboard: No node_id received in form data")
+            
+            # Return error JSON for AJAX requests
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({
+                    'success': False,
+                    'message': 'No node selected',
+                    'error': 'missing_node_id'
+                }), 400
         
+        # Regular form submission - redirect to dashboard
         return redirect(url_for('dashboard'))
     
     # GET request - show the dashboard
@@ -439,32 +467,78 @@ def control(node_id):
 
 @app.route('/api/status')
 def api_status():
-    """API endpoint for system status"""
-    nodes = get_all_nodes()
-    return jsonify({
-        "status": "online",
-        "nodes": nodes,
-        "timestamp": time.time()
-    })
+    """API endpoint to check system status"""
+    try:
+        nodes = get_nodes_with_mock_data()
+        
+        # Check MQTT connection status
+        mqtt_status = {
+            'connected': mqtt_handler.client.is_connected() if mqtt_handler else False,
+            'broker': MQTT_BROKER,
+            'port': MQTT_PORT
+        }
+        
+        # Check nodes status
+        nodes_status = []
+        for node in nodes:
+            nodes_status.append({
+                'node_id': node.get('node_id'),
+                'name': node.get('name', 'Unknown'),
+                'status': node.get('status', 'offline'),
+                'last_seen': node.get('last_seen'),
+                'node_type': node.get('node_type', 'unknown')
+            })
+        
+        return jsonify({
+            'success': True,
+            'timestamp': time.time(),
+            'mqtt': mqtt_status,
+            'nodes': nodes_status,
+            'total_nodes': len(nodes),
+            'online_nodes': len([n for n in nodes if n.get('status') == 'online'])
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': time.time()
+        }), 500
 
-@app.route('/api/control/<node_id>', methods=['POST'])
-def api_control(node_id):
-    """API endpoint for control actions"""
-    data = request.json or {}
-    action = data.get('action', 'flush')
-    
-    # Publish command to MQTT
-    success = mqtt_handler.publish_command(node_id, action, data)
-    
-    # Log the API action
-    log_event(node_id, "api_command", {"action": action, "data": data})
-    
-    return jsonify({
-        "success": success,
-        "node_id": node_id,
-        "action": action,
-        "timestamp": time.time()
-    })
+@app.route('/api/send_command', methods=['POST'])
+def api_send_command():
+    """API endpoint to send commands to nodes"""
+    try:
+        data = request.get_json()
+        node_id = data.get('node_id')
+        action = data.get('action', 'flush')
+        
+        if not node_id:
+            return jsonify({
+                'success': False,
+                'error': 'node_id is required'
+            }), 400
+        
+        # Send MQTT command
+        success = mqtt_handler.publish_command(node_id, action)
+        
+        # Log the action
+        log_event(node_id, "api_command", {"action": action, "success": success})
+        
+        return jsonify({
+            'success': success,
+            'message': f'{action.upper()} command sent to {node_id}',
+            'node_id': node_id,
+            'action': action,
+            'timestamp': time.time()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': time.time()
+        }), 500
 
 @app.route('/events')
 def events_page():

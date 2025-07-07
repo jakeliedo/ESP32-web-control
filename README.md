@@ -1,6 +1,17 @@
-# ESP32 WC Control System
+# 🚽 WC Control System v2.0
 
-Hệ thống điều khiển WC thông minh sử dụng ESP32, MQTT và Flask Web Interface.
+Hệ thống điều khiển WC thông minh sử dụng ESP32, MQTT và Flask Web Interface với giao diện hiện đại.
+
+## ✨ Features
+
+🎛️ **Web Dashboard** - Giao diện điều khiển đầy đủ tính năng  
+📱 **Mobile UI** - Tối ưu cho điện thoại di động  
+🔄 **Real-time Updates** - Cập nhật trạng thái thời gian thực  
+🌐 **MQTT Communication** - Giao tiếp đáng tin cậy với ESP32  
+🗄️ **Event Logging** - Lưu trữ và theo dõi hoạt động  
+🎨 **Modern UI** - Giao diện đẹp với Dark/Light theme  
+📊 **Analytics** - Thống kê và phân tích sử dụng  
+⚡ **Quick Setup** - Cài đặt tự động với script  
 
 ## 🏗️ Kiến trúc hệ thống
 
@@ -8,47 +19,111 @@ Hệ thống điều khiển WC thông minh sử dụng ESP32, MQTT và Flask We
 ┌─────────────────┐    MQTT     ┌─────────────────┐    HTTP    ┌─────────────────┐
 │   ESP32 Nodes   │◄──────────► │    PC Host      │◄─────────► │   Web Browser   │
 │   (Room 1,2..)  │   Commands  │  (Flask App)    │  Control   │   Dashboard     │
+│                 │   Status    │   MQTT Broker   │            │                 │
 └─────────────────┘             └─────────────────┘            └─────────────────┘
+        │                               │                              │
+        │                               │                              │
+        └─ WiFi ─┐           ┌─ Database ─┘                              │
+                 │           │ (SQLite)                                │
+                 └─ Network ─┘                                         │
+                                                             ┌─────────┘
+                                                             │
+                                                     ┌───────▼────────┐
+                                                     │  Mobile Devices │
+                                                     │   Responsive    │
+                                                     └─────────────────┘
 ```
 
 ## 📁 Cấu trúc dự án
 
 ```
 ESP_WC_System/
-├── PC_host/                    # Flask web server
-│   ├── app.py                 # Main Flask application
-│   ├── config.py              # Configuration settings
-│   ├── database.py            # SQLite database handler
-│   ├── mqtt_handler.py        # MQTT client handler
-│   ├── templates/             # HTML templates
-│   │   ├── index.html         # Dashboard UI
-│   │   ├── simple.html        # Mobile-optimized UI
-│   │   └── layout.html        # Base template
-│   └── static/                # CSS, JS, images
-├── ESP32_nodes/               # ESP32 firmware
-│   ├── room1/
-│   │   └── main.py           # ESP32 MicroPython code
-│   └── deploy.py             # Deployment script
-└── config/                   # Global configuration
-    ├── devices.json          # Device definitions
-    └── network_config.json   # Network settings
+├── 📦 PC_host/                    # Flask Web Server
+│   ├── 🐍 app.py                 # Main Flask application  
+│   ├── ⚙️ config.py              # Configuration settings
+│   ├── 🗄️ database.py            # SQLite database handler
+│   ├── 📡 mqtt_handler.py        # MQTT client handler
+│   ├── 🎨 templates/             # HTML templates
+│   │   ├── index.html           # Modern Dashboard UI
+│   │   ├── events.html          # Event history
+│   │   ├── analytics.html       # Analytics dashboard
+│   │   └── layout.html          # Base template with theme
+│   ├── 🎨 static/                # Frontend assets
+│   │   ├── css/style.css        # Enhanced styles
+│   │   ├── js/main.js           # Interactive features
+│   │   └── images/              # UI icons and images
+│   └── 🗄️ data/                  # Database storage
+├── 📱 ESP32_host/                # ESP32 Remote Control
+│   ├── main.py                  # Remote control firmware
+│   ├── lib/                     # MicroPython libraries
+│   └── 📋 requirements.txt       # ESP32 dependencies
+├── 🏠 ESP32_nodes/               # Individual WC Nodes
+│   ├── room1/                   # Node 1 (Male WC)
+│   │   └── main.py             # Node firmware
+│   └── room2/                   # Node 2 (Female WC)
+├── ⚙️ config/                    # Global configuration
+│   ├── devices.json            # Device definitions
+│   └── network_config.json     # Network settings
+├── 📚 requirements.txt           # Python dependencies
+├── 📖 INSTALLATION_GUIDE.md     # Detailed setup guide
+├── 🛠️ setup.bat                 # Windows auto-setup
+└── 🛠️ setup.sh                  # Linux/Mac auto-setup
 ```
 
 ## 🚀 Quick Setup
 
-### Option 1: Automatic Setup (Recommended)
-```bash
-# Clone and setup in one go
-git clone <repo-url>
+### 🏃‍♂️ Option 1: Automatic Setup (Recommended)
+
+#### Windows:
+```cmd
+git clone <repository-url>
 cd ESP_WC_System
+setup.bat
+```
+
+#### macOS/Linux:
+```bash
+git clone <repository-url>
+cd ESP_WC_System
+chmod +x setup.sh
+./setup.sh
+```
+
+### 🛠️ Option 2: Manual Setup
+
+#### 1. Clone Repository:
+```bash
+git clone <repository-url>
+cd ESP_WC_System
+```
+
+#### 2. Install Python Dependencies:
+```bash
+# Create virtual environment (recommended)
+python -m venv venv
 
 # Windows
-quick_setup.bat
+venv\Scripts\activate
+# macOS/Linux  
+source venv/bin/activate
 
-# Linux/Mac
-chmod +x quick_setup.sh
-./quick_setup.sh
+# Install dependencies
+pip install -r requirements.txt
 ```
+
+#### 3. Run Application:
+```bash
+cd PC_host
+python quick_start.py
+```
+
+## 🖥️ Access URLs
+
+- **🎛️ Main Dashboard**: http://localhost:5000
+- **📱 Mobile Interface**: http://localhost:5000/simple  
+- **📋 Event History**: http://localhost:5000/events
+- **📊 Analytics**: http://localhost:5000/analytics
+- **🔧 API Status**: http://localhost:5000/api/status
 
 ### Option 2: Manual Setup
 

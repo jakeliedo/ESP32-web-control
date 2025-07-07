@@ -354,9 +354,9 @@ body {
 /* Loading Animations */
 .loading-spinner {
     display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(255,255,255,.3);
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
     border-top-color: #fff;
     animation: spin 1s ease-in-out infinite;
@@ -364,6 +364,21 @@ body {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* Button Loading State */
+.flush-button.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.flush-button.loading img {
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
 }
 
 /* Chart Container */
@@ -761,4 +776,83 @@ body {
     background: linear-gradient(90deg, var(--bs-primary), transparent);
     margin: 2rem 0;
     border-radius: 1px;
+}
+
+/* Enhanced Notifications */
+.notifications-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1060;
+    max-width: 400px;
+}
+
+.notification {
+    margin-bottom: 10px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.notification.success {
+    background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+    border-left: 4px solid #389e0d;
+}
+
+.notification.error {
+    background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
+    border-left: 4px solid #cf1322;
+}
+
+.notification.warning {
+    background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%);
+    border-left: 4px solid #d48806;
+}
+
+.notification.info {
+    background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+    border-left: 4px solid #096dd9;
+}
+
+/* Button Enhanced States */
+.btn {
+    transition: var(--transition);
+    border-radius: var(--border-radius);
+    font-weight: 500;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.btn.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }

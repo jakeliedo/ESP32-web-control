@@ -8,7 +8,7 @@ import json
 NODE_ID = 'wc_female_01'  # Matches Room3 (Female WC)
 NODE_TYPE = 'female'
 ROOM_NAME = 'Room 1'
-MQTT_BROKER = '192.168.1.182'  # PC host IP address
+MQTT_BROKER = '192.168.100.121'  # PC host IP address
 MQTT_PORT = 1883
 
 # === GPIO Setup ===
@@ -43,8 +43,8 @@ def connect_wifi():
     
     if "Michelle" in networks:
         wlan.connect('Michelle', '0908800130')
-    elif "Vinternal" in networks:
-        wlan.connect('Vinternal', 'Veg@s123')
+    elif "Floor 9" in networks:
+        wlan.connect('Floor 9', 'Veg@s123')
     else:
         print(f"[{NODE_ID}] No known WiFi networks found")
         return False

@@ -12,7 +12,7 @@ NODE_TYPE = 'male'
 ROOM_NAME = 'Room1'
 
 # Network Configuration
-MQTT_BROKER = '192.168.100.72'  # Your PC's IP address
+MQTT_BROKER = '192.168.100.121'  # Your PC's IP address
 MQTT_PORT = 1883
 WIFI_SSID = 'Michelle'  # Your WiFi network
 WIFI_PASS = '0908800130'  # Your WiFi password
@@ -20,7 +20,7 @@ WIFI_PASS = '0908800130'  # Your WiFi password
 # Alternative WiFi networks
 WIFI_NETWORKS = [
     {'ssid': 'Michelle', 'password': '0908800130'},
-    {'ssid': 'Vinternal', 'password': 'Veg@s123'}
+    {'ssid': 'Floor 9', 'password': 'Veg@s123'}
 ]
 
 # === GPIO Setup ===

@@ -6,7 +6,7 @@ import json
 
 # === Cấu hình Node ===
 NODE_ID = 'wc2'
-MQTT_BROKER = '192.168.100.72'
+MQTT_BROKER = '192.168.100.121'
 MQTT_PORT = 1883
 
 # === GPIO Setup ===
@@ -27,8 +27,8 @@ def connect_wifi():
     
     if "Michelle" in [n[0].decode() for n in wlan.scan()]:
         wlan.connect('Michelle', '0908800130')
-    elif "Vinternal" in [n[0].decode() for n in wlan.scan()]:
-        wlan.connect('Vinternal', 'Veg@s123')
+    elif "Floor 9" in [n[0].decode() for n in wlan.scan()]:
+        wlan.connect('Floor 9', 'Veg@s123')
     else:
         return False
     

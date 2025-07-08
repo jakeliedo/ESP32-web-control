@@ -4,14 +4,56 @@
 		{
 			"label": "Run WC Control System",
 			"type": "shell",
-			"command": "B:/Python/MicroPython/ESP_WC_System/PC_host/venv/Scripts/python.exe",
+			"command": "d:/Python/ESP32-web-control/venv/Scripts/python.exe",
 			"args": [
 				"app.py"
 			],
 			"group": "build",
 			"isBackground": true,
 			"options": {
-				"cwd": "b:/Python/MicroPython/ESP_WC_System/PC_host"
+				"cwd": "d:/Python/ESP32-web-control/PC_host"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Run WC Control System (Test Mode)",
+			"type": "shell",
+			"command": "d:/Python/ESP32-web-control/venv/Scripts/python.exe",
+			"args": [
+				"app_test.py"
+			],
+			"group": "test",
+			"isBackground": true,
+			"options": {
+				"cwd": "d:/Python/ESP32-web-control/PC_host"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Test MQTT Connection",
+			"type": "shell",
+			"command": "d:/Python/ESP32-web-control/venv/Scripts/python.exe",
+			"args": [
+				"mqtt_test.py"
+			],
+			"group": "test",
+			"isBackground": false,
+			"options": {
+				"cwd": "d:/Python/ESP32-web-control/PC_host"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Simulate ESP32 Nodes",
+			"type": "shell",
+			"command": "d:/Python/ESP32-web-control/venv/Scripts/python.exe",
+			"args": [
+				"simulate_esp32.py"
+			],
+			"group": "test",
+			"isBackground": true,
+			"options": {
+				"cwd": "d:/Python/ESP32-web-control/PC_host"
 			},
 			"problemMatcher": []
 		}

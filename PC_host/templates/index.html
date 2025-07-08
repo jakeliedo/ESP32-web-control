@@ -127,16 +127,15 @@
                             </div>
                             
                             <div class="control-action">
+                                <input type="hidden" name="node_id" value="{{ node.node_id }}">
                                 <button type="submit" 
                                         class="flush-button" 
-                                        name="node_id" 
-                                        value="{{ node.node_id }}"
+                                        name="action" 
+                                        value="flush"
                                         {% if node.status != 'online' %}disabled{% endif %}>
                                     <img src="{{ url_for('static', filename='button.png') }}" alt="FLUSH">
                                 </button>
                             </div>
-                            
-                            <input type="hidden" name="action" value="flush">
                         </div>
                         {% endfor %}
                     </div>

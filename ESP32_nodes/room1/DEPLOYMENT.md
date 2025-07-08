@@ -3,7 +3,7 @@
 ## 🎯 Quick Start (COM10)
 
 ### 1. Prerequisites
-- ✅ ESP32 connected to COM10
+- ✅ ESP32 connected to COM9
 - ✅ MicroPython firmware flashed on ESP32
 - ✅ VS Code with Pymakr extension installed
 - ✅ Flask app running on PC (for MQTT broker)
@@ -21,11 +21,11 @@ code .
 Edit `main.py` and update:
 ```python
 # Line 18: Your PC's IP address
-MQTT_BROKER = '192.168.1.182'  # ← Change this!
+MQTT_BROKER = '192.168.100.121'  # ← Change this!
 
 # Line 21-22: Your WiFi credentials  
-WIFI_SSID = 'Michelle'          # ← Your WiFi name
-WIFI_PASS = '0908800130'        # ← Your WiFi password
+WIFI_SSID = 'Floor 9'          # ← Your WiFi name
+WIFI_PASS = 'Veg@s123'        # ← Your WiFi password
 ```
 
 ### 4. Upload to ESP32
@@ -34,7 +34,7 @@ WIFI_PASS = '0908800130'        # ← Your WiFi password
 1. **Connect Device**:
    - Press `Ctrl+Shift+P`
    - Type: "Pymakr: Connect Device"
-   - Select COM10
+   - Select COM9
 
 2. **Upload Project**:
    - Right-click on `room1` folder in Explorer

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MQTT Configuration
-MQTT_BROKER = os.getenv("MQTT_BROKER", "192.168.1.181")
+MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")

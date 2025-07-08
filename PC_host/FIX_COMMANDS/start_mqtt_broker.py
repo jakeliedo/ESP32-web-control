@@ -31,7 +31,7 @@ try:
     def start_simple_broker():
         """Start a simple Python MQTT broker"""
         print("🔧 Starting simple Python MQTT broker on port 1883...")
-        print("📡 Broker will accept connections on 192.168.1.181:1883")
+        print("📡 Broker will accept connections on 192.168.100.121:1883")
         
         # Create a simple broker simulation
         import socket
@@ -39,7 +39,7 @@ try:
         import json
         
         class SimpleMQTTBroker:
-            def __init__(self, host='192.168.1.181', port=1883):
+            def __init__(self, host='192.168.100.121', port=1883):
                 self.host = host
                 self.port = port
                 self.clients = {}

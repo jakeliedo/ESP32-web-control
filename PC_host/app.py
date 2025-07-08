@@ -18,7 +18,7 @@ app.config['SECRET_KEY'] = SECRET_KEY
 socketio = SocketIO(app)
 
 # Địa chỉ IP của ESP32 (thay bằng IP thực tế của bạn)
-ESP32_IP = "http://192.168.100.72"
+ESP32_IP = "http://192.168.100.83"
 
 # Khởi tạo MQTT Handler với socketio cho real-time updates
 mqtt_handler = MQTTHandler(socketio)
@@ -287,7 +287,7 @@ def get_nodes_with_mock_data():
                 time_since_seen = current_time - last_seen
                 
                 # Node is considered online only if seen within last 30 seconds
-                if time_since_seen < 30:
+                if time_since_seen < 15:
                     node['status'] = 'online'
                     online_nodes.append(node)
                     print(f"📡 Node {node.get('id', 'unknown')} is ONLINE (last seen {time_since_seen:.1f}s ago)")
@@ -331,10 +331,11 @@ def get_events_with_mock_data(limit=10):
         print(f"Error getting events from database, using mock data: {e}")
         return MOCK_EVENTS[:limit]
 
-@app.route('/', methods=['GET', 'POST'])
+#dashboard route
+@app.route('/', methods=["GET", "POST"])
 def dashboard():
     """Main dashboard page with Node and Events data"""
-    if request.method == 'POST':
+    if request.method == "POST":
         print(f"\n🔍 DASHBOARD POST REQUEST RECEIVED!")
         print(f"🔍 Form data: {dict(request.form)}")
         print(f"🔍 Request headers: {dict(request.headers)}")
@@ -377,13 +378,17 @@ def dashboard():
         # Fall back to simple template if templates not found
         return render_template_string(HTML)
 
+# Simple UI route
+# This is a mobile-optimized version with a 2x2 grid layout
 @app.route("/simple", methods=["GET", "POST"])
 def simple_index():
     """Mobile-optimized simple UI with 2x2 grid layout"""
     if request.method == "POST":
         print(f"\n🔍 SIMPLE UI POST REQUEST RECEIVED!")
         print(f"🔍 Form data: {dict(request.form)}")
+        #print(f"🔍 Request headers: {dict(request.headers)}")
         
+        # Handle control actions from simple UI
         node_id = request.form.get("node_id")
         action = request.form.get("action", "flush")
         
@@ -419,7 +424,9 @@ def simple_index():
         # Fall back to old HTML template if simple.html not found
         return render_template_string(HTML)
 
-@app.route('/control/<node_id>', methods=['POST'])
+# Control route for specific nodes
+# This handles control actions for specific nodes via POST requests
+@app.route('/control/<node_id>', methods=["POST"])
 def control(node_id):
     """Handle control actions for specific nodes"""
     try:
@@ -437,6 +444,8 @@ def control(node_id):
         print(f"Error in control: {e}")
         return f"Error: {str(e)}", 500
 
+# API endpoints
+
 @app.route('/api/status')
 def api_status():
     """API endpoint for system status"""
@@ -447,7 +456,7 @@ def api_status():
         "timestamp": time.time()
     })
 
-@app.route('/api/control/<node_id>', methods=['POST'])
+@app.route('/api/control/<node_id>', methods=["POST"])
 def api_control(node_id):
     """API endpoint for control actions"""
     data = request.json or {}
@@ -466,6 +475,8 @@ def api_control(node_id):
         "timestamp": time.time()
     })
 
+# Events page
+# This page allows users to view system events
 @app.route('/events')
 def events_page():
     """Page to view system events"""
@@ -473,6 +484,8 @@ def events_page():
     events = get_events_with_mock_data(limit)
     return render_template('events.html', events=events)
 
+# Analytics page
+# This page provides insights and analytics about the system
 @app.route('/analytics')
 def analytics_page():
     """Analytics and insights page"""

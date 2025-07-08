@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request, redirect, url_for, jsonify
+from flask import Flask, render_template, render_template_string, request, redirect, url_for, jsonify, flash
 from flask_socketio import SocketIO
 import threading
 import time
@@ -142,7 +142,21 @@ HTML = """
             font-size: 1.1rem;
             margin-bottom: 40px;
         }
+        .hide-group { margin-right: 20px !important; gap: 2px !important; }
+        .hide-group label { margin-left: 2px !important; font-size: 1rem; }
+        .inline-row { flex-direction: row; align-items: center; gap: 12px; }
+        /* Đảm bảo checkbox và label HIDE sát nhau, nhóm này sát lề phải nhưng không quá xa */
     }
+    .hide-group input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+    }
+    .hide-group label {
+        margin-left: 4px;
+        font-size: 1.08rem;
+    }
+    /* Đảm bảo .hide-group luôn nằm sát lề phải, checkbox và label gần nhau, đẹp trên cả desktop và mobile */
     </style>
 </head>
 <body>
@@ -180,7 +194,7 @@ HTML = """
 # Mock data for demo purposes - Limited to 4 nodes (offline when not connected)
 MOCK_NODES = [
     {
-        'node_id': 'wc_male_01',
+        'node_id': 'wc1',
         'name': 'Room 1',
         'node_type': 'male',
         'status': 'offline',  # Mock data shows offline until real devices connect
@@ -188,7 +202,7 @@ MOCK_NODES = [
         'last_seen': time.time() - 600  # 10 minutes ago
     },
     {
-        'node_id': 'wc_male_02', 
+        'node_id': 'wc2', 
         'name': 'Room 2',
         'node_type': 'male',
         'status': 'offline',  # Mock data shows offline until real devices connect
@@ -196,7 +210,7 @@ MOCK_NODES = [
         'last_seen': time.time() - 600  # 10 minutes ago
     },
     {
-        'node_id': 'wc_female_01',
+        'node_id': 'wc3',
         'name': 'Room 1', 
         'node_type': 'female',
         'status': 'offline',  # Mock data shows offline until real devices connect
@@ -218,21 +232,21 @@ MOCK_EVENTS = [
     {
         'id': 1,
         'timestamp': time.time() - 60,
-        'node_id': 'wc_male_01',
+        'node_id': 'wc1',
         'event_type': 'web_command',
         'data': {'action': 'flush', 'success': True, 'ui': 'dashboard'}
     },
     {
         'id': 2, 
         'timestamp': time.time() - 180,
-        'node_id': 'wc_female_01',
+        'node_id': 'wc2',
         'event_type': 'sensor_trigger',
         'data': {'sensor': 'motion', 'value': True}
     },
     {
         'id': 3,
         'timestamp': time.time() - 300,
-        'node_id': 'wc_male_02',
+        'node_id': 'wc3',
         'event_type': 'status_change',
         'data': {'old_status': 'offline', 'new_status': 'online'}
     },
@@ -267,56 +281,61 @@ MOCK_EVENTS = [
     {
         'id': 8,
         'timestamp': time.time() - 900,
-        'node_id': 'wc_male_01',
+        'node_id': 'wc1',
         'event_type': 'status_change',
         'data': {'old_status': 'offline', 'new_status': 'online'}
     }
 ]
 
 def get_nodes_with_mock_data():
-    """Get nodes from database, fallback to mock data if empty. Limit to 4 nodes maximum."""
+    """Get nodes from config/devices.json (admin UI), fallback to database or mock data if empty."""
     try:
-        real_nodes = get_all_nodes()
+        # Ưu tiên lấy từ file config quản trị
+        admin_nodes = load_admin_nodes()
         current_time = time.time()
-        
+        if admin_nodes and len(admin_nodes) > 0:
+            # Lấy trạng thái online/offline từ database nếu có
+            db_nodes = {n.get('node_id') or n.get('id'): n for n in get_all_nodes() or []}
+            result = []
+            for n in admin_nodes:
+                if n.get('hide', False):
+                    continue  # skip hidden nodes
+                node_id = n.get('node_id')
+                db_node = db_nodes.get(node_id, {})
+                last_seen = db_node.get('last_seen', 0)
+                time_since_seen = current_time - last_seen if last_seen else 9999
+                status = 'online' if time_since_seen < 30 else 'offline'
+                result.append({
+                    'node_id': node_id,
+                    'node_type': n.get('node_type', 'unknown'),
+                    'name': n.get('name', 'Room'),
+                    'status': status,
+                    'last_seen': last_seen
+                })
+            return result
+        # Nếu không có file config, fallback sang database
+        real_nodes = get_all_nodes()
         if real_nodes and len(real_nodes) > 0:
-            # Check which nodes are actually online (seen within last 30 seconds)
-            online_nodes = []
+            nodes = []
             for node in real_nodes:
+                node_id = node.get('node_id') or node.get('id')
                 last_seen = node.get('last_seen', 0)
                 time_since_seen = current_time - last_seen
-                
-                # Node is considered online only if seen within last 30 seconds
-                if time_since_seen < 30:
-                    node['status'] = 'online'
-                    online_nodes.append(node)
-                    print(f"📡 Node {node.get('id', 'unknown')} is ONLINE (last seen {time_since_seen:.1f}s ago)")
-                else:
-                    node['status'] = 'offline'  # Force offline if not seen recently
-                    print(f"⚠️ Node {node.get('id', 'unknown')} is OFFLINE (last seen {time_since_seen:.1f}s ago)")
-            
-            # Add required fields for templates
-            for node in real_nodes[:4]:
-                if 'node_type' not in node:
-                    if 'male' in node.get('id', ''):
-                        node['node_type'] = 'male'
-                    elif 'female' in node.get('id', ''):
-                        node['node_type'] = 'female'
-                    else:
-                        node['node_type'] = 'unknown'
-                
-                # Ensure node_id field exists for templates
-                if 'node_id' not in node and 'id' in node:
-                    node['node_id'] = node['id']
-            
-            print(f"📊 Real nodes status: {len(online_nodes)} online, {len(real_nodes) - len(online_nodes)} offline")
-            return real_nodes[:4]
-        else:
-            print("⚠️ No ESP32 devices found in database - Using MOCK data (all offline)")
-            return MOCK_NODES[:4]
+                status = 'online' if time_since_seen < 30 else 'offline'
+                nodes.append({
+                    'node_id': node_id,
+                    'node_type': node.get('node_type', 'unknown'),
+                    'name': node.get('name', 'Room'),
+                    'status': status,
+                    'last_seen': last_seen
+                })
+            return nodes
+        # Fallback mock
+        print("⚠️ No nodes found in config or database - Using MOCK data (all offline)")
+        return MOCK_NODES
     except Exception as e:
-        print(f"❌ Error getting nodes from database, using mock data: {e}")
-        return MOCK_NODES[:4]
+        print(f"❌ Error getting nodes, using mock data: {e}")
+        return MOCK_NODES
 
 def get_events_with_mock_data(limit=10):
     """Get events from database, fallback to mock data if empty"""
@@ -570,6 +589,132 @@ def analytics_page():
     except Exception as e:
         print(f"Error rendering analytics page: {e}")
         return f"Error loading analytics: {str(e)}", 500
+
+# --- Admin Node Management UI ---
+ADMIN_NODES_JSON = os.path.join(os.path.dirname(__file__), 'config', 'devices.json')
+
+def load_admin_nodes():
+    if os.path.exists(ADMIN_NODES_JSON):
+        with open(ADMIN_NODES_JSON, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_admin_nodes(nodes):
+    os.makedirs(os.path.dirname(ADMIN_NODES_JSON), exist_ok=True)
+    with open(ADMIN_NODES_JSON, 'w', encoding='utf-8') as f:
+        json.dump(nodes, f, ensure_ascii=False, indent=2)
+
+@app.route('/nodes', methods=['GET', 'POST'])
+def manage_nodes():
+    real_nodes = get_all_nodes() or []
+    node_ids = []
+    for n in real_nodes:
+        nid = n.get('node_id') or n.get('id')
+        if nid and nid not in node_ids:
+            node_ids.append(nid)
+    if not node_ids:
+        for n in load_admin_nodes():
+            nid = n.get('node_id')
+            if nid and nid not in node_ids:
+                node_ids.append(nid)
+    nodes = load_admin_nodes()
+    if request.method == 'POST':
+        node_id = request.form.get('node_id', '').strip()
+        node_type = request.form.get('node_type', 'male')
+        name = request.form.get('name', 'Room').strip() or 'Room'
+        hide = request.form.get('hide', 'off') == 'on'
+        if not node_id:
+            flash('Node ID is required!', 'danger')
+        else:
+            found = False
+            for n in nodes:
+                if n['node_id'] == node_id:
+                    n['node_type'] = node_type
+                    n['name'] = name
+                    n['hide'] = hide
+                    found = True
+                    break
+            if not found:
+                nodes.append({'node_id': node_id, 'node_type': node_type, 'name': name, 'hide': hide})
+            save_admin_nodes(nodes)
+            flash(f'Node {node_id} saved.', 'success')
+        return redirect(url_for('manage_nodes'))
+    # GET
+    html = '''
+    <!DOCTYPE html>
+    <html><head><title>Node Management</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+    body { background: #222; color: #fff; font-family: Arial; }
+    .container { max-width: 500px; margin: 32px auto; background: #333; border-radius: 12px; padding: 24px; }
+    input, select { width: 100%; padding: 8px; margin: 8px 0 16px 0; border-radius: 6px; border: none; }
+    button { padding: 10px 24px; border-radius: 6px; border: none; background: #4caf50; color: #fff; font-weight: bold; cursor: pointer; }
+    table { width: 95%; margin: 24px auto 0 auto; border-collapse: collapse; background: #222; border-radius: 10px; box-shadow: 0 2px 12px #0004; font-size: 1.05rem; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #444; text-align: left; }
+    th { background: #2a2a2a; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover { background: #444; }
+    /* Đảm bảo bảng danh sách cân đối với card, cùng max-width, căn giữa và padding hợp lý */
+    .success { color: #8f8; }
+    .danger { color: #f88; }
+    .inline-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .short-select { width: 90px; min-width: 60px; }
+    .short-input { width: 90px; min-width: 60px; }
+    .hide-group { margin-left: auto; display: flex; align-items: center; gap: 2px; margin-right: 20px; }
+    @media (max-width: 600px) {
+      .container { width: 95%; padding: 16px; }
+      input, select { padding: 12px; }
+      button { width: 100%; }
+      .inline-row { flex-direction: row; align-items: center; gap: 12px; }
+      .hide-group { margin-right: 20px !important; gap: 2px !important; }
+      .hide-group label { margin-left: 2px !important; font-size: 1rem; }
+      .short-select, .short-input { width: 100%; }
+    }
+    </style></head><body>
+    <div class="container">
+    <h2>Node Management</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="post">
+      <div class="inline-row">
+        <label for="node_id" style="margin:0;">Node ID:</label>
+        <select name="node_id" id="node_id" class="short-select" required>
+          <option value="">Select</option>
+          {% for nid in node_ids %}
+            <option value="{{nid}}">{{nid}}</option>
+          {% endfor %}
+        </select>
+        <div class="hide-group">
+          <input type="checkbox" name="hide" id="hide">
+          <label for="hide" style="margin:0 0 0 2px;">HIDE</label>
+        </div>
+      </div>
+      <div class="inline-row">
+        <label for="node_type" style="margin:0;">Type:</label>
+        <select name="node_type" id="node_type" class="short-select">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+        <label for="name" style="margin:0 0 0 12px;">Room:</label>
+        <input name="name" id="name" class="short-input" placeholder="e.g. 1">
+      </div>
+      <button type="submit">Add / Update</button>
+    </form>
+    <h3>Node List</h3>
+    <table><tr><th>ID</th><th>Type</th><th>Room Name</th><th>Hide</th></tr>
+    {% for n in nodes %}
+      <tr><td>{{n.node_id}}</td><td>{{n.node_type}}</td><td>{{n.name}}</td><td>{{'Yes' if n.hide else ''}}</td></tr>
+    {% endfor %}
+    </table>
+    </div></body></html>
+    '''
+    return render_template_string(html, nodes=nodes, node_ids=node_ids)
 
 # SocketIO events for real-time updates
 @socketio.on('connect')

@@ -21,11 +21,20 @@
         "python.analysis.extraPaths": [
             "./esp32_host/lib",
             "./esp8266_nodes/lib"
-        ]
+        ],
+        "powershell.cwd": "ESP_WC_System"
     },
     "folders": [
         {
             "path": "."
+        },
+        {
+            "name": "wc1",
+            "path": "ESP8266_nodes/wc1"
+        },
+        {
+            "name": "wc2",
+            "path": "ESP8266_nodes/wc2"
         }
     ]
 }

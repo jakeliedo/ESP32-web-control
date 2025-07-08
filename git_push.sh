@@ -1,4 +1,4 @@
-#!/bin/bash
+t#!/bin/bash
 # Simple Git Push Script for WC Control System
 
 echo "=== WC Control System - Git Push Helper ==="

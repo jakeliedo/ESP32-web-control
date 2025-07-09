@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 import requests
+from collections import deque
 
 # Import modules
 from config import DEBUG, SECRET_KEY, HOST, PORT, MQTT_BROKER, MQTT_PORT
@@ -143,7 +144,7 @@ HTML = """
             margin-bottom: 40px;
         }
         .hide-group { margin-right: 20px !important; gap: 2px !important; }
-        .hide-group label { margin-left: 2px !important; font-size: 1rem; }
+        .hide-group label { margin-left: 1px !important; font-size: 1rem; }
         .inline-row { flex-direction: row; align-items: center; gap: 12px; }
         /* Đảm bảo checkbox và label HIDE sát nhau, nhóm này sát lề phải nhưng không quá xa */
     }
@@ -153,7 +154,7 @@ HTML = """
         margin: 0;
     }
     .hide-group label {
-        margin-left: 4px;
+        margin-left: 10px;
         font-size: 1.08rem;
     }
     /* Đảm bảo .hide-group luôn nằm sát lề phải, checkbox và label gần nhau, đẹp trên cả desktop và mobile */
@@ -424,6 +425,10 @@ def dashboard():
         # Fall back to simple template if templates not found
         return render_template_string(HTML)
 
+# --- Simple UI: Track recent commands for status lines ---
+# Lưu 3 lệnh FLUSH gần nhất cho simple UI
+recent_commands = deque(maxlen=3)
+
 @app.route("/simple", methods=["GET", "POST"])
 def simple_index():
     """Mobile-optimized simple UI with 2x2 grid layout"""
@@ -449,6 +454,11 @@ def simple_index():
                 
                 print(f"✅ Simple UI: Sent {action} to node {node_id}, success: {success}")
                 
+                # Nếu là lệnh FLUSH thì lưu lại
+                if action.lower() == "flush" or action.endswith("_on"):
+                    now_str = time.strftime('%H:%M:%S', time.localtime())
+                    recent_commands.appendleft(f"FLUSH sent to {node_id} ({now_str})")
+                
             except Exception as e:
                 print(f"❌ Error in simple UI control: {e}")
         else:
@@ -460,7 +470,10 @@ def simple_index():
     try:
         nodes = get_nodes_with_mock_data()
         print(f"🔍 Simple UI rendering: Found {len(nodes)} nodes")
-        return render_template('simple.html', nodes=nodes)
+        # Status lines: 3 lệnh FLUSH gần nhất + 1 dòng thời gian
+        status_lines = list(recent_commands)
+        status_lines.append(f"Time: {time.strftime('%H:%M:%S', time.localtime())}")
+        return render_template('simple.html', nodes=nodes, status_lines=status_lines)
     except Exception as e:
         print(f"❌ Error rendering simple UI: {e}")
         # Fall back to old HTML template if simple.html not found
@@ -667,7 +680,7 @@ def manage_nodes():
       button { width: 100%; }
       .inline-row { flex-direction: row; align-items: center; gap: 12px; }
       .hide-group { margin-right: 20px !important; gap: 2px !important; }
-      .hide-group label { margin-left: 2px !important; font-size: 1rem; }
+      .hide-group label { margin-left: 1px !important; font-size: 1rem; }
       .short-select, .short-input { width: 100%; }
     }
     </style></head><body>
@@ -689,7 +702,7 @@ def manage_nodes():
             <option value="{{nid}}">{{nid}}</option>
           {% endfor %}
         </select>
-        <div class="hide-group">
+        <div class="hide-group" style="margin-left:8px;">
           <input type="checkbox" name="hide" id="hide">
           <label for="hide" style="margin:0 0 0 2px;">HIDE</label>
         </div>

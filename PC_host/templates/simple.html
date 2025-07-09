@@ -306,6 +306,16 @@
 
     <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="Logo">
 
+    {% if status_lines %}
+    <div style="position:fixed; left:14px; bottom:14px; z-index:20; min-width:120px;">
+      {% for line in status_lines %}
+        <div style="background:#000; color:#00ffe0; font-size:0.7rem; font-family:'Fira Mono', 'Consolas', 'Menlo', 'Monaco', monospace; border-radius:0; margin-bottom:1px; padding:1px 10px 1px 10px; letter-spacing:0.5px; box-shadow:none; text-shadow:0 0 2px #00ffe0; line-height:0.9;">
+          {{ line }}
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     <script>
         // Auto-refresh every 30 seconds
         setTimeout(() => {

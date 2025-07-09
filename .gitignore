@@ -86,3 +86,4 @@ ESP32_nodes/**/venv/
 ARCHIVE_MISC/
 
 ESP_WC_System/
+ESP_WC_System/venv/

@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 *.so
@@ -83,3 +84,5 @@ ESP8266_nodes/**/venv/
 ESP32_nodes/**/__pycache__/
 ESP32_nodes/**/venv/
 ARCHIVE_MISC/
+
+ESP_WC_System/

@@ -21,21 +21,17 @@ bool relayActive = false;
 
 void setup_wifi() {
   delay(10);
-  Serial.print("[wc1] Connecting to WiFi");
-  WiFi.begin(ssid, password);
-  int retry = 0;
-  while (WiFi.status() != WL_CONNECTED) {
+  for (int retry = 0; retry < 20; retry++) {
+    Serial.printf("[%s] Connecting to WiFi... (%d/20)\n", node_id, retry + 1);
+    if (WiFi.status() == WL_CONNECTED) break;
+    WiFi.begin(ssid, password);
     delay(500);
-    Serial.print(".");
-    retry++;
-    if (retry > 40) {
-      Serial.println("\n[wc1] WiFi connection failed!");
-      return;
-    }
   }
-  Serial.println("\n[wc1] WiFi connected!");
-  Serial.print("[wc1] IP: ");
-  Serial.println(WiFi.localIP());
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("[%s] WiFi connected! IP: %s\n", node_id, WiFi.localIP().toString().c_str());
+  } else {
+    Serial.printf("[%s] WiFi connection failed\n", node_id);
+  }
 }
 
 void publish_status() {
@@ -51,7 +47,7 @@ void publish_status() {
   size_t n = serializeJson(doc, buf);
   String topic = String("wc/") + node_id + "/status";
   client.publish(topic.c_str(), buf, n);
-  Serial.println("[wc1] Status published");
+  Serial.printf("[%s] Status published\n", node_id);
 }
 
 void publish_response(const char* action, bool success, const char* message) {
@@ -65,12 +61,11 @@ void publish_response(const char* action, bool success, const char* message) {
   size_t n = serializeJson(doc, buf);
   String topic = String("wc/") + node_id + "/response";
   client.publish(topic.c_str(), buf, n);
-  Serial.print("[wc1] Response published: ");
-  Serial.println(action);
+  Serial.printf("[%s] Response published: %s\n", node_id, action);
 }
 
 void blink_led_4s() {
-  Serial.println("[wc1] Blinking LED for 4 seconds...");
+  Serial.printf("[%s] Blinking LED for 4 seconds...\n", node_id);
   for (int i = 0; i < 20; i++) {
     digitalWrite(LED_PIN, LOW);
     delay(100);
@@ -78,7 +73,7 @@ void blink_led_4s() {
     delay(100);
   }
   digitalWrite(LED_PIN, HIGH);
-  Serial.println("[wc1] LED blinking done");
+  Serial.printf("[%s] LED blinking done\n", node_id);
 }
 
 void stop_relay() {
@@ -86,7 +81,7 @@ void stop_relay() {
   relayActive = false;
   digitalWrite(LED_PIN, HIGH);
   publish_response("stop", true, "Relay deactivated");
-  Serial.println("[wc1] Relay stopped");
+  Serial.printf("[%s] Relay stopped\n", node_id);
 }
 
 void execute_flush() {
@@ -95,7 +90,7 @@ void execute_flush() {
   digitalWrite(LED_PIN, LOW);
   relayOffTime = millis() + 5000;
   publish_response("flush", true, "Flush executed, LED blinking 4s");
-  Serial.println("[wc1] FLUSH command received!");
+  Serial.printf("[%s] FLUSH command received!\n", node_id);
   blink_led_4s();
 }
 
@@ -131,14 +126,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 void reconnect() {
   while (!client.connected()) {
-    Serial.println("[wc1] Attempting MQTT connection...");
+    Serial.printf("[%s] Attempting MQTT connection...\n", node_id);
     if (client.connect(node_id)) {
       String topic = String("wc/") + node_id + "/command";
       client.subscribe(topic.c_str());
-      Serial.print("[wc1] Subscribed to topic: ");
-      Serial.println(topic);
+      Serial.printf("[%s] MQTT connected and subscribed to %s\n", node_id, topic.c_str());
     } else {
-      Serial.println("[wc1] MQTT connection failed, retrying...");
+      Serial.printf("[%s] MQTT connection failed, retrying...\n", node_id);
       delay(2000);
     }
   }
@@ -147,37 +141,53 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   delay(100);
-  Serial.println("[wc1] Starting node...");
+  Serial.println("Starting main.cpp...");
+  Serial.printf("[%s] Starting %s (%s) node...\n", node_id, room_name, node_type);
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
   digitalWrite(LED_PIN, HIGH);
-  setup_wifi();
-  Serial.println("[wc1] WiFi connected!");
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
-  // Test LED startup
-  Serial.println("[wc1] Testing LED...");
+  Serial.printf("[%s] Testing LED...\n", node_id);
   for (int i = 0; i < 3; i++) {
     digitalWrite(LED_PIN, LOW); delay(300);
     digitalWrite(LED_PIN, HIGH); delay(300);
   }
-  Serial.println("[wc1] LED test complete");
-  publish_status();
-  Serial.println("[wc1] Node ready!");
+  Serial.printf("[%s] LED test complete\n", node_id);
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+  if (WiFi.status() == WL_CONNECTED) {
+    reconnect();
+    publish_status();
+    Serial.printf("[%s] 🎉 %s ESP32 Node is ready!\n", node_id, room_name);
+    Serial.printf("[%s] 💡 LED will blink for 4 seconds when flush command is received\n", node_id);
+    Serial.printf("[%s] 📡 Status will be published every 10 seconds\n", node_id);
+  } else {
+    Serial.printf("[%s] Node is OFFLINE (WiFi not connected)\n", node_id);
+  }
 }
 
 void loop() {
   if (!client.connected()) reconnect();
   client.loop();
   unsigned long now = millis();
-  // Tự động tắt relay sau 5s
+  // Auto-off relay after 5s
   if (relayActive && now > relayOffTime) {
     stop_relay();
   }
-  // Định kỳ publish status mỗi 10s
+  // Publish status every 10s
   if (now - lastStatusTime > 10000) {
+    static int status_count = 1;
+    Serial.printf("[%s] 📊 Publishing status update #%d\n", node_id, status_count++);
     publish_status();
     lastStatusTime = now;
+  }
+  // Print debug info every 5s
+  static unsigned long lastDebug = 0;
+  if (now - lastDebug > 5000) {
+    const char* wifi_status = (WiFi.status() == WL_CONNECTED) ? "connected" : "disconnected";
+    const char* mqtt_status = client.connected() ? "connected" : "disconnected";
+    Serial.printf("[%s] 🔄 Status: WiFi=%s, MQTT=%s, Relay=%d\n", node_id, wifi_status, mqtt_status, relayActive ? 1 : 0);
+    lastDebug = now;
   }
 }

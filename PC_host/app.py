@@ -291,21 +291,24 @@ MOCK_EVENTS = [
 def get_nodes_with_mock_data():
     """Get nodes from config/devices.json (admin UI), fallback to database or mock data if empty."""
     try:
-        # Ưu tiên lấy từ file config quản trị
         admin_nodes = load_admin_nodes()
         current_time = time.time()
+        db_nodes_raw = get_all_nodes() or []
+        db_nodes = {n.get('node_id') or n.get('id'): n for n in db_nodes_raw}
+        result = []
         if admin_nodes and len(admin_nodes) > 0:
-            # Lấy trạng thái online/offline từ database nếu có
-            db_nodes = {n.get('node_id') or n.get('id'): n for n in get_all_nodes() or []}
-            result = []
             for n in admin_nodes:
                 if n.get('hide', False):
                     continue  # skip hidden nodes
                 node_id = n.get('node_id')
                 db_node = db_nodes.get(node_id, {})
                 last_seen = db_node.get('last_seen', 0)
-                time_since_seen = current_time - last_seen if last_seen else 9999
-                status = 'online' if time_since_seen < 30 else 'offline'
+                # Nếu không có last_seen hoặc không có database, luôn offline
+                if not db_nodes_raw or not last_seen or last_seen == 0:
+                    status = 'offline'
+                else:
+                    time_since_seen = current_time - last_seen
+                    status = 'online' if time_since_seen < 30 else 'offline'
                 result.append({
                     'node_id': node_id,
                     'node_type': n.get('node_type', 'unknown'),
@@ -315,14 +318,16 @@ def get_nodes_with_mock_data():
                 })
             return result
         # Nếu không có file config, fallback sang database
-        real_nodes = get_all_nodes()
-        if real_nodes and len(real_nodes) > 0:
+        if db_nodes_raw and len(db_nodes_raw) > 0:
             nodes = []
-            for node in real_nodes:
+            for node in db_nodes_raw:
                 node_id = node.get('node_id') or node.get('id')
                 last_seen = node.get('last_seen', 0)
-                time_since_seen = current_time - last_seen
-                status = 'online' if time_since_seen < 30 else 'offline'
+                if not last_seen or last_seen == 0:
+                    status = 'offline'
+                else:
+                    time_since_seen = current_time - last_seen
+                    status = 'online' if time_since_seen < 30 else 'offline'
                 nodes.append({
                     'node_id': node_id,
                     'node_type': node.get('node_type', 'unknown'),

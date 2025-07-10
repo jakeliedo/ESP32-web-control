@@ -68,32 +68,37 @@ class MQTTHandler:
         """Called when a message is received on a subscribed topic"""
         topic = message.topic
         payload = message.payload.decode('utf-8')
-        print(f"MQTT: {topic} = {payload}")
-    
+        is_retained = getattr(message, 'retain', False)
+        print(f"MQTT: {topic} = {payload} (retained={is_retained})")
+
         # Broadcast to all connected web clients
         if self.socketio:
             self.socketio.emit('mqtt_message', {
                 'topic': topic,
-                'payload': payload
+                'payload': payload,
+                'retained': is_retained
             })
-    
+
         # Parse topic parts: wc/node_id/message_type
         topic_parts = topic.split('/')
         if len(topic_parts) >= 3 and topic_parts[0] == 'wc':
             node_id = topic_parts[1]
             message_type = topic_parts[2]
-            
+
             try:
                 data = json.loads(payload)
-                
+
                 # Handle status updates from ESP32 nodes
                 if message_type == "status":
+                    if is_retained:
+                        print(f"⚠️ Ignoring retained status message for {node_id}")
+                        return  # Ignore retained status messages
                     print(f"📡 Status update from {node_id}: {data.get('status', 'unknown')}")
                     # Update node status in database - pass data so room_name can be used
                     update_node_status(node_id, data.get('status', 'unknown'), data)
                     # Log status update event
                     log_event(node_id, 'status_update', data)
-                    
+
                     # Emit real-time update to web clients
                     if self.socketio:
                         self.socketio.emit('node_status_update', {
@@ -101,16 +106,16 @@ class MQTTHandler:
                             'status': data.get('status', 'unknown'),
                             'data': data
                         })
-                
+
                 # Handle command responses from ESP32 nodes
                 elif message_type == "response":
                     action = data.get('action', 'unknown')
                     success = data.get('success', False)
                     print(f"✅ Response from {node_id}: {action} - {'SUCCESS' if success else 'FAILED'}")
-                    
+
                     # Log response event
                     log_event(node_id, 'command_response', data)
-                    
+
                     # Emit real-time update to web clients
                     if self.socketio:
                         self.socketio.emit('command_response', {
@@ -119,7 +124,7 @@ class MQTTHandler:
                             'success': success,
                             'data': data
                         })
-                        
+
                         # Also emit as new event for the events list
                         self.socketio.emit('new_event', {
                             'timestamp': time.time(),
@@ -127,18 +132,18 @@ class MQTTHandler:
                             'event_type': 'command_response',
                             'data': data
                         })
-                        
+
             except json.JSONDecodeError:
                 # Handle plain text messages
                 print(f"📝 Plain text message from {node_id}: {payload}")
-                
+
         # Legacy support for old ESP32 format
         elif topic == "wc/esp32/status":
             try:
                 status_data = json.loads(payload)
                 # Log event to database
                 log_event('esp32', 'status_update', status_data)
-            
+
                 # Emit as new event for UI update
                 if self.socketio:
                     self.socketio.emit('new_event', {

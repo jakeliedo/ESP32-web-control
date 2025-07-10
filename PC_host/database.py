@@ -152,3 +152,12 @@ def get_recent_events(limit=50):
     
     conn.close()
     return events
+
+def update_node_name(node_id, new_name):
+    """Update only the node name in the database"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('UPDATE nodes SET name = ? WHERE id = ?', (new_name, node_id))
+    conn.commit()
+    conn.close()
+    return True

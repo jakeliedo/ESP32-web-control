@@ -1,0 +1,40 @@
+{% extends 'layout.html' %}
+
+{% block title %}Edit Node Names - WC Control System{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4"><i class="bi bi-pencil-square me-2"></i>Edit Node Display Names</h2>
+    {% if message %}
+        <div class="alert alert-success">{{ message }}</div>
+    {% endif %}
+    <form method="post" class="card p-4 shadow-sm">
+        <table class="table table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Node ID</th>
+                    <th>Current Name</th>
+                    <th>New Name</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for node in nodes %}
+                <tr>
+                    <td>{{ node.node_id or node.id }}</td>
+                    <td>{{ node.name or '' }}</td>
+                    <td style="width:220px;">
+                        <input type="text" name="name" value="{{ node.name or '' }}" class="form-control" required>
+                        <input type="hidden" name="node_id" value="{{ node.node_id or node.id }}">
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-primary btn-sm">Update</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </form>
+    <a href="/" class="btn btn-link mt-3"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+</div>
+{% endblock %}

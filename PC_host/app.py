@@ -10,7 +10,7 @@ import requests
 # Import modules
 from config import DEBUG, SECRET_KEY, HOST, PORT
 from mqtt_handler import MQTTHandler
-from database import get_all_nodes, get_recent_events, log_event, update_node_status
+from database import get_all_nodes, get_recent_events, log_event, update_node_status, update_node_name
 
 # Khởi tạo Flask app
 app = Flask(__name__, static_folder='static')
@@ -509,6 +509,25 @@ def analytics_page():
     except Exception as e:
         print(f"Error rendering analytics page: {e}")
         return f"Error loading analytics: {str(e)}", 500
+
+# Nodes configuration page
+# This page allows setting custom names for nodes
+def update_node_name_helper(node_id, new_name):
+    """Update the name of a node in the database."""
+    return update_node_name(node_id, new_name)
+
+@app.route('/nodes', methods=["GET", "POST"])
+def nodes_config():
+    """Page to view and set node names for UI cards."""
+    message = None
+    if request.method == "POST":
+        node_id = request.form.get('node_id')
+        new_name = request.form.get('name')
+        if node_id and new_name:
+            update_node_name_helper(node_id, new_name)
+            message = f"Updated name for {node_id} to '{new_name}'"
+    nodes = get_all_nodes() or []
+    return render_template('nodes.html', nodes=nodes, message=message)
 
 # SocketIO events for real-time updates
 @socketio.on('connect')

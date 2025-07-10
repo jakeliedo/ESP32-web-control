@@ -15,7 +15,7 @@ from database import get_all_nodes, get_recent_events, log_event, update_node_st
 # Khởi tạo Flask app
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = SECRET_KEY
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode="threading")
 
 # Địa chỉ IP của ESP32 (thay bằng IP thực tế của bạn)
 ESP32_IP = "http://192.168.100.83"

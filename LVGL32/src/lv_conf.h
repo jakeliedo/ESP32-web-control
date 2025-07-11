@@ -1,6 +1,3 @@
-/**
- * LVGL v9.x Configuration for ESP32 + TFT_eSPI
- */
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
@@ -8,29 +5,26 @@
    COLOR SETTINGS
  *====================*/
 #define LV_COLOR_DEPTH     16
+#define LV_COLOR_16_SWAP   0
 
 /*=========================
    MEMORY SETTINGS
  *=========================*/
-#define LV_MEM_SIZE    (64 * 1024U)
-#define LV_MEM_ADR          0
-#define LV_MEM_CUSTOM       0
+#define LV_MEM_SIZE    (48U * 1024U)
+#define LV_MEM_CUSTOM  0
 
 /*====================
    HAL SETTINGS
  *====================*/
-#define LV_TICK_CUSTOM       0
-#define LV_USE_OS            LV_OS_NONE
+#define LV_TICK_CUSTOM       1
+#if LV_TICK_CUSTOM
+    #define LV_TICK_CUSTOM_INCLUDE "Arduino.h"
+    #define LV_TICK_CUSTOM_SYS_TIME_EXPR (millis())
+#endif
 
 /*====================
-   RENDERING SETTINGS
- *====================*/
-#define LV_USE_DRAW_SW       1
-#define LV_DRAW_SW_COMPLEX   1
-
-/*=================
    LOGGING
- *=================*/
+ *====================*/
 #define LV_USE_LOG      1
 #if LV_USE_LOG
   #define LV_LOG_LEVEL  LV_LOG_LEVEL_WARN
@@ -38,30 +32,13 @@
 #endif
 
 /*=================
-   ASSERTS
+   FONT
  *=================*/
-#define LV_USE_ASSERT_NULL          1
-#define LV_USE_ASSERT_MALLOC        1
-#define LV_USE_ASSERT_STYLE         0
-#define LV_USE_ASSERT_MEM_INTEGRITY 0
-#define LV_USE_ASSERT_OBJ           0
+#define LV_FONT_DEFAULT &lv_font_montserrat_14
 
-/*=================
-   WIDGETS
- *=================*/
-#define LV_USE_LABEL     1
-#define LV_USE_BTN       1
-#define LV_USE_IMG       1
-#define LV_USE_SLIDER    1
-#define LV_USE_SWITCH    1
-#define LV_USE_ARC       1
-#define LV_USE_TEXTAREA  1
-#define LV_USE_DROPDOWN  1
-#define LV_USE_ROLLER    1
-#define LV_USE_SPINBOX   1
-#define LV_USE_SPINNER   1
-#define LV_USE_CHART     1
-#define LV_USE_TABLE     1
-#define LV_USE_MSGBOX    1
+//#define LV_USE_FS_STDIO 1
+//#define LV_USE_PNG 1
+//#define LV_USE_BMP 1
+//#define LV_USE_JPG 1
 
 #endif /*LV_CONF_H*/

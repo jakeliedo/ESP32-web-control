@@ -1,88 +1,84 @@
 #include <Arduino.h>
-#include <lvgl.h>
+
 #include <Arduino_GFX_Library.h>
 
 #define TFT_BL 27
 #define screenWidth 320
 #define screenHeight 240
 
-#if defined(DISPLAY_DEV_KIT)
-Arduino_GFX *gfx = create_default_Arduino_GFX();
-#else
-Arduino_DataBus *bus = new Arduino_ESP32SPI(2 /* DC */, 15 /* CS */, 14 /* SCK */, 13 /* MOSI */, GFX_NOT_DEFINED /* MISO */);
-Arduino_GFX *gfx = new Arduino_ST7789(bus, -1 /* RST */, 1 /* rotation */, true /* IPS */);
-#endif
+Arduino_DataBus *bus = new Arduino_ESP32SPI(2, 15, 14, 13, GFX_NOT_DEFINED);
+Arduino_GFX *gfx = new Arduino_ST7789(bus, -1, 1, true);
 
-static lv_color_t buf1[screenWidth * 10]; // Buffer cho 10 dòng
+const uint16_t rainbowColors[7] = {
+    0xF800, // Red
+    0xFC00, // Orange
+    0xFFE0, // Yellow
+    0x07E0, // Green
+    0x001F, // Blue
+    0x4810, // Indigo
+    0x901F  // Violet
+};
 
-void my_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
-    uint32_t w = area->x2 - area->x1 + 1;
-    uint32_t h = area->y2 - area->y1 + 1;
-#if (LV_COLOR_16_SWAP != 0)
-    gfx->draw16bitBeRGBBitmap(area->x1, area->y1, (uint16_t *)px_map, w, h);
-#else
-    gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)px_map, w, h);
-#endif
-    lv_display_flush_ready(disp);
-}
-
-lv_obj_t *scr = nullptr;
-lv_obj_t *dummy_label = nullptr;
 unsigned long lastColorChange = 0;
 uint8_t currentColorIndex = 0;
+uint8_t nextColorIndex = 1;
+float t = 0.0; // Tiến trình chuyển màu (0.0 -> 1.0)
 
-// 7 màu sắc cầu vồng
-const uint32_t rainbowColors[7] = {
-    0xFF0000, // Red
-    0xFF7F00, // Orange
-    0xFFFF00, // Yellow
-    0x00FF00, // Green
-    0x0000FF, // Blue
-    0x4B0082, // Indigo
-    0x8B00FF  // Violet
-};
+uint16_t blendColor(uint16_t c1, uint16_t c2, float t) {
+    // Tách RGB565 thành RGB888
+    uint8_t r1 = ((c1 >> 11) & 0x1F) << 3;
+    uint8_t g1 = ((c1 >> 5) & 0x3F) << 2;
+    uint8_t b1 = (c1 & 0x1F) << 3;
+    uint8_t r2 = ((c2 >> 11) & 0x1F) << 3;
+    uint8_t g2 = ((c2 >> 5) & 0x3F) << 2;
+    uint8_t b2 = (c2 & 0x1F) << 3;
+    // Nội suy và giảm sáng 50%
+    uint8_t r = ((1-t)*r1 + t*r2) * 0.5;
+    uint8_t g = ((1-t)*g1 + t*g2) * 0.5;
+    uint8_t b = ((1-t)*b1 + t*b2) * 0.5;
+    // Ghép lại RGB565
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+void draw_gradient(uint16_t c1, uint16_t c2, float t) {
+    uint16_t lineBuf[screenWidth];
+    for (int y = 0; y < screenHeight; y++) {
+        float ratio = (float)y / (screenHeight - 1);
+        // Có thể dùng ratio để tạo hiệu ứng gradient dọc nếu muốn
+        uint16_t color = blendColor(c1, c2, t);
+        for (int x = 0; x < screenWidth; x++) {
+            lineBuf[x] = color;
+        }
+        gfx->draw16bitRGBBitmap(0, y, lineBuf, screenWidth, 1);
+    }
+}
 
 void setup() {
     Serial.begin(115200);
-    lv_init();
     gfx->begin(80000000);
-    gfx->fillScreen(BLACK);
 
 #ifdef TFT_BL
     pinMode(TFT_BL, OUTPUT);
     digitalWrite(TFT_BL, HIGH);
     ledcSetup(0, 2000, 8);
     ledcAttachPin(TFT_BL, 0);
-    ledcWrite(0, 255);
+    ledcWrite(0, 128); // 50% độ sáng backlight
 #endif
 
-    lv_display_t *disp = lv_display_create(screenWidth, screenHeight);
-    lv_display_set_flush_cb(disp, my_flush_cb);
-    lv_display_set_buffers(disp, buf1, NULL, sizeof(buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
-
-    scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(rainbowColors[0]), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
-
-    // Thêm dummy label để đảm bảo LVGL cập nhật màn hình
-    dummy_label = lv_label_create(scr);
-    lv_label_set_text(dummy_label, "");
+    draw_gradient(rainbowColors[currentColorIndex], rainbowColors[nextColorIndex], t);
 }
 
 void loop() {
-    lv_timer_handler();
-
     unsigned long now = millis();
-    if (now - lastColorChange >= 500) {
+    if (now - lastColorChange >= 20) {
         lastColorChange = now;
-        currentColorIndex = (currentColorIndex + 1) % 7;
-
-        lv_obj_set_style_bg_color(scr, lv_color_hex(rainbowColors[currentColorIndex]), LV_PART_MAIN);
-        lv_obj_invalidate(scr); // Đánh dấu cần vẽ lại
-
-        // Cập nhật dummy label để kích LVGL redraw
-        lv_label_set_text_fmt(dummy_label, " "); // Nội dung không quan trọng
+        t += 0.01;
+        if (t >= 1.0) {
+            t = 0.0;
+            currentColorIndex = (currentColorIndex + 1) % 7;
+        }
+        nextColorIndex = (currentColorIndex + 1) % 7;
+        draw_gradient(rainbowColors[currentColorIndex], rainbowColors[nextColorIndex], t);
     }
-
     delay(5);
 }

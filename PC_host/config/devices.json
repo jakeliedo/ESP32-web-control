@@ -26,7 +26,7 @@
     "node_id": "wc_male_01",
     "node_type": "male",
     "name": "Room",
-    "hide": true
+    "hide": false
   },
   {
     "node_id": "wc_male_02",

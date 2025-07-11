@@ -35,6 +35,10 @@
         {
             "name": "wc2",
             "path": "ESP8266_nodes/wc2"
+        },
+        {
+            "name": "LVGL32",
+            "path": "LVGL32"
         }
     ]
 }

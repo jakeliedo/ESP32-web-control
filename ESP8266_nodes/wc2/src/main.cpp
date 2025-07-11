@@ -1,12 +1,26 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
+#include <Arduino.h>
 
 #define RELAY_PIN D1
 #define LED_PIN   LED_BUILTIN
 
-const char* ssid = "Michelle";
-const char* password = "0908800130";
+// WiFi networks in priority order
+struct WifiNetwork {
+  const char* ssid;
+  const char* password;
+};
+WifiNetwork wifiNetworks[] = {
+  {"Floor 9", "Veg@s123"}, // Corrected case
+  {"Vinternal", "abcd123456"},
+  {"Michelle", "0908800130"},
+  {"Vtech","Veg@s123"}
+};
+const int wifiNetworkCount = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
+
 const char* mqtt_server = "192.168.1.181";
 const char* node_id = "wc2";
 const char* node_type = "male";
@@ -18,23 +32,237 @@ PubSubClient client(espClient);
 unsigned long lastStatusTime = 0;
 unsigned long relayOffTime = 0;
 bool relayActive = false;
+unsigned long lastReconnectAttempt = 0;
+const unsigned long reconnectInterval = 5000; // 5 seconds
 
-void setup_wifi() {
+// --- WiFi State Machine ---
+enum WifiState { WIFI_IDLE, WIFI_SCANNING, WIFI_CONNECTING, WIFI_CONNECTED, WIFI_FAILED };
+WifiState wifiState = WIFI_IDLE;
+int wifiScanIndex = 0;
+int wifiConnectIndex = -1;
+unsigned long wifiLastAction = 0;
+int wifiRetry = 0;
+
+// --- LED Indication: Simple State Machine ---
+enum LedMode {
+  LED_OFF,        // Tắt
+  LED_ON,         // Sáng liên tục
+  LED_BLINK_SLOW, // Nháy chậm (WiFi scan/fail)
+  LED_BLINK_FAST, // Nháy nhanh (WiFi/MQTT connecting)
+  LED_FLASH,      // Nháy ngắn 2 lần (WiFi/MQTT connected)
+  LED_FLUSH       // Nháy 4s khi flush
+};
+LedMode ledMode = LED_OFF;
+unsigned long ledTick = 0;
+int ledCount = 0;
+
+void setLed(LedMode mode) {
+  ledMode = mode;
+  ledTick = millis();
+  ledCount = 0;
+}
+
+void handleLed() {
+  unsigned long now = millis();
+  switch (ledMode) {
+    case LED_OFF:
+      digitalWrite(LED_PIN, HIGH);
+      break;
+    case LED_ON:
+      digitalWrite(LED_PIN, LOW);
+      break;
+    case LED_BLINK_SLOW:
+      if (now - ledTick > 400) {
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+        ledTick = now;
+      }
+      break;
+    case LED_BLINK_FAST:
+      if (now - ledTick > 120) {
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+        ledTick = now;
+      }
+      break;
+    case LED_FLASH:
+      if (ledCount < 4) {
+        if (now - ledTick > 80) {
+          digitalWrite(LED_PIN, ledCount % 2 == 0 ? LOW : HIGH);
+          ledTick = now;
+          ledCount++;
+        }
+      } else {
+        digitalWrite(LED_PIN, HIGH);
+        ledMode = LED_OFF;
+      }
+      break;
+    case LED_FLUSH:
+      if (ledCount < 20) {
+        if (now - ledTick > 100) {
+          digitalWrite(LED_PIN, ledCount % 2 == 0 ? LOW : HIGH);
+          ledTick = now;
+          ledCount++;
+        }
+      } else {
+        digitalWrite(LED_PIN, HIGH);
+        ledMode = LED_OFF;
+      }
+      break;
+  }
+}
+
+void start_wifi_scan() {
+  wifiState = WIFI_SCANNING;
+  wifiScanIndex = 0;
+  wifiConnectIndex = -1;
+  wifiLastAction = millis();
+  Serial.println("[wc2] Scanning for WiFi networks...");
+  WiFi.disconnect();
+  WiFi.scanDelete();
+  WiFi.scanNetworks(true); // async scan
+  setLed(LED_BLINK_SLOW);
+}
+
+void handle_wifi() {
+  unsigned long now = millis();
+  if (wifiState == WIFI_SCANNING) {
+    int8_t n = WiFi.scanComplete();
+    if (n == WIFI_SCAN_RUNNING) return;
+    if (n < 0) {
+      if (now - wifiLastAction > 5000) {
+        Serial.println("[wc2] WiFi scan failed, retrying...");
+        WiFi.scanNetworks(true);
+        wifiLastAction = now;
+      }
+      setLed(LED_BLINK_SLOW);
+      return;
+    }
+    Serial.print("[wc2] Found "); Serial.print(n); Serial.println(" WiFi networks.");
+    for (int i = 0; i < wifiNetworkCount; i++) {
+      for (int j = 0; j < n; j++) {
+        if (String(WiFi.SSID(j)).equalsIgnoreCase(String(wifiNetworks[i].ssid))) {
+          wifiConnectIndex = i;
+          break;
+        }
+      }
+      if (wifiConnectIndex != -1) break;
+    }
+    WiFi.scanDelete();
+    if (wifiConnectIndex == -1) {
+      Serial.println("[wc2] No known WiFi networks found!");
+      wifiState = WIFI_FAILED;
+      setLed(LED_BLINK_SLOW);
+      return;
+    }
+    Serial.print("[wc2] Connecting to WiFi: ");
+    Serial.println(wifiNetworks[wifiConnectIndex].ssid);
+    WiFi.begin(wifiNetworks[wifiConnectIndex].ssid, wifiNetworks[wifiConnectIndex].password);
+    wifiRetry = 0;
+    wifiLastAction = now;
+    wifiState = WIFI_CONNECTING;
+    setLed(LED_BLINK_FAST);
+  } else if (wifiState == WIFI_CONNECTING) {
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.print("[wc2] WiFi connected! IP: ");
+      Serial.println(WiFi.localIP());
+      wifiState = WIFI_CONNECTED;
+      setLed(LED_FLASH);
+      return;
+    }
+    if (now - wifiLastAction > 5000) {
+      wifiRetry++;
+      if (wifiRetry > 5) {
+        Serial.println("[wc2] WiFi connection failed after 5 attempts!");
+        wifiState = WIFI_FAILED;
+        setLed(LED_BLINK_SLOW);
+        return;
+      }
+      Serial.print("[wc2] WiFi retry "); Serial.println(wifiRetry);
+      WiFi.disconnect();
+      WiFi.begin(wifiNetworks[wifiConnectIndex].ssid, wifiNetworks[wifiConnectIndex].password);
+      wifiLastAction = now;
+      setLed(LED_BLINK_FAST);
+    }
+  }
+}
+
+// --- Non-blocking LED Blink ---
+enum LedEffect { LED_NONE, LED_BLINK_4S };
+LedEffect ledEffect = LED_NONE;
+unsigned long ledEffectStart = 0;
+int ledEffectStep = 0;
+void startLedEffect(LedEffect effect) {
+  ledEffect = effect;
+  ledEffectStart = millis();
+  ledEffectStep = 0;
+}
+void handleLedEffect() {
+  if (ledEffect == LED_BLINK_4S) {
+    unsigned long now = millis();
+    if (ledEffectStep < 20) {
+      if ((now - ledEffectStart) >= 100) {
+        digitalWrite(LED_PIN, ledEffectStep % 2 == 0 ? LOW : HIGH);
+        ledEffectStart = now;
+        ledEffectStep++;
+      }
+    } else {
+      digitalWrite(LED_PIN, HIGH);
+      ledEffect = LED_NONE;
+      Serial.println("[wc2] LED blinking done");
+    }
+  }
+}
+
+bool setup_wifi() {
   delay(10);
-  Serial.println();
-  Serial.printf("[%s] Connecting to WiFi...\n", node_id);
-  WiFi.begin(ssid, password);
-  int attempt = 0;
-  while (WiFi.status() != WL_CONNECTED && attempt < 20) {
+  Serial.println("[wc2] Scanning for WiFi networks...");
+  int8_t n = WiFi.scanNetworks();
+  Serial.print("[wc2] Found ");
+  Serial.print(n);
+  Serial.println(" WiFi networks.");
+  int chosen = -1;
+  for (int i = 0; i < wifiNetworkCount; i++) {
+    Serial.print("[wc2] Checking known SSID: ");
+    Serial.println(wifiNetworks[i].ssid);
+    for (int j = 0; j < n; j++) {
+      Serial.print("[wc2]  - Found SSID: ");
+      Serial.println(WiFi.SSID(j));
+      if (String(WiFi.SSID(j)).equalsIgnoreCase(String(wifiNetworks[i].ssid))) {
+        chosen = i;
+        Serial.print("[wc2]  -> Match found: ");
+        Serial.println(wifiNetworks[i].ssid);
+        break;
+      }
+    }
+    if (chosen != -1) break;
+  }
+  if (chosen == -1) {
+    Serial.println("[wc2] No known WiFi networks found!");
+    return false;
+  }
+  Serial.print("[wc2] Connecting to WiFi: ");
+  Serial.println(wifiNetworks[chosen].ssid);
+  WiFi.begin(wifiNetworks[chosen].ssid, wifiNetworks[chosen].password);
+  int retry = 0;
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    attempt++;
-    Serial.printf("[%s] Connecting to WiFi... (%d/20)\n", node_id, attempt);
+    Serial.print(".");
+    retry++;
+    if (retry % 10 == 0) {
+      Serial.print(" [wc2] Still connecting (attempt ");
+      Serial.print(retry);
+      Serial.println(")");
+    }
+    if (retry > 10) {
+      Serial.println("\n[wc2] WiFi connection failed after 10 attempts! Resetting device...");
+      ESP.restart();
+      delay(1000); // Give time for restart
+      return false;
+    }
   }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("[%s] WiFi connected! IP: %s\n", node_id, WiFi.localIP().toString().c_str());
-  } else {
-    Serial.printf("[%s] WiFi connection failed\n", node_id);
-  }
+  Serial.println("\n[wc2] WiFi connected!");
+  Serial.print("[wc2] IP: ");
+  Serial.println(WiFi.localIP());
+  return true;
 }
 
 void publish_status() {
@@ -50,7 +278,7 @@ void publish_status() {
   size_t n = serializeJson(doc, buf);
   String topic = String("wc/") + node_id + "/status";
   client.publish(topic.c_str(), buf, n);
-  Serial.printf("[%s] Status published\n", node_id);
+  Serial.println("[wc2] Status published");
 }
 
 void publish_response(const char* action, bool success, const char* message) {
@@ -64,135 +292,127 @@ void publish_response(const char* action, bool success, const char* message) {
   size_t n = serializeJson(doc, buf);
   String topic = String("wc/") + node_id + "/response";
   client.publish(topic.c_str(), buf, n);
+  Serial.print("[wc2] Response published: ");
+  Serial.println(action);
 }
 
 void blink_led_4s() {
-  Serial.printf("[%s] \xF0\x9F\x92\xA1 Starting 4-second LED blink sequence...\n", node_id); // 💡
+  Serial.println("[wc2] Blinking LED for 4 seconds...");
   for (int i = 0; i < 20; i++) {
     digitalWrite(LED_PIN, LOW);
-    Serial.printf("[%s] \xF0\x9F\x92\xA1 LED ON - blink %d/20\n", node_id, i+1);
     delay(100);
     digitalWrite(LED_PIN, HIGH);
-    Serial.printf("[%s] \xF0\x9F\x92\xA1 LED OFF - blink %d/20\n", node_id, i+1);
     delay(100);
   }
   digitalWrite(LED_PIN, HIGH);
-  Serial.printf("[%s] \xE2\x9C\x85 LED blinking completed - 4 seconds finished\n", node_id); // ✅
+  Serial.println("[wc2] LED blinking done");
 }
 
 void stop_relay() {
   digitalWrite(RELAY_PIN, LOW);
   relayActive = false;
-  digitalWrite(LED_PIN, HIGH);
+  setLed(LED_OFF);
   publish_response("stop", true, "Relay deactivated");
-  Serial.printf("[%s] Relay stopped\n", node_id);
+  Serial.println("[wc2] Relay stopped");
 }
 
 void execute_flush() {
-  Serial.printf("[%s] \xF0\x9F\x9A\xBD FLUSH COMMAND PROCESSING STARTED!\n", node_id); // 🚽
-  Serial.printf("[%s] \xF0\x9F\x94\xA7 Activating hardware...\n", node_id); // 🔧
   digitalWrite(RELAY_PIN, HIGH);
   relayActive = true;
-  digitalWrite(LED_PIN, LOW);
+  setLed(LED_FLUSH);
   relayOffTime = millis() + 5000;
   publish_response("flush", true, "Flush executed, LED blinking 4s");
-  Serial.printf("[%s] \xE2\x9C\x85 Relay activated: %d\n", node_id, digitalRead(RELAY_PIN)); // ✅
-  blink_led_4s();
-  Serial.printf("[%s] \xE2\x8F\xB0 5-second auto-off timer started\n", node_id); // ⏰
-  Serial.printf("[%s] \xF0\x9F\x8E\x89 FLUSH COMMAND COMPLETED!\n", node_id); // 🎉
+  Serial.println("[wc2] FLUSH command received!");
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String msg;
   for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
   String action = msg;
-  Serial.printf("[%s] \xF0\x9F\x93\xA8 MQTT Message Received!\n", node_id); // 📨
-  Serial.printf("[%s]    Topic: %s\n", node_id, topic);
-  Serial.printf("[%s]    Message: %s\n", node_id, msg.c_str());
-  // Try parse JSON
+  Serial.print("[wc2] MQTT message received: ");
+  Serial.println(msg);
+  // Thử parse JSON
   StaticJsonDocument<128> doc;
   DeserializationError err = deserializeJson(doc, msg);
   if (!err) {
     if (doc.containsKey("action")) action = doc["action"].as<String>();
-    Serial.printf("[%s]    Parsed Action: %s\n", node_id, action.c_str());
-  } else {
-    Serial.printf("[%s]    Using plain string action: %s\n", node_id, action.c_str());
+    Serial.print("[wc2] Parsed action: ");
+    Serial.println(action);
   }
   action.trim();
   if (action == "flush" || action == "on" || action == "activate") {
     execute_flush();
   } else if (action == "status" || action == "ping") {
-    Serial.printf("[%s] \xF0\x9F\x93\x8A STATUS REQUEST RECEIVED!\n", node_id); // 📊
     publish_status();
+    Serial.println("[wc2] STATUS command received!");
   } else if (action == "off" || action == "stop") {
-    Serial.printf("[%s] \xF0\x9F\x9B\x91 STOP COMMAND RECEIVED!\n", node_id); // 🛑
     stop_relay();
+    Serial.println("[wc2] STOP command received!");
   } else {
-    Serial.printf("[%s] \xE2\x9D\x93 Unknown action: %s\n", node_id, action.c_str()); // ❓
     publish_response(action.c_str(), false, "Unknown action");
+    Serial.print("[wc2] Unknown action: ");
+    Serial.println(action);
   }
 }
 
 void reconnect() {
-  while (!client.connected()) {
-    if (client.connect(node_id)) {
-      String topic = String("wc/") + node_id + "/command";
-      client.subscribe(topic.c_str());
-      Serial.printf("[%s] MQTT connected and subscribed to %s\n", node_id, topic.c_str());
-      publish_status();
-    } else {
-      Serial.printf("[%s] MQTT connection failed, retrying in 2 seconds...\n", node_id);
-      delay(2000);
-    }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[wc2] WiFi not connected, cannot connect to MQTT!");
+    setLed(LED_BLINK_SLOW);
+    return;
+  }
+  Serial.println("[wc2] Attempting MQTT connection...");
+  setLed(LED_BLINK_FAST);
+  if (client.connect(node_id)) {
+    String topic = String("wc/") + node_id + "/command";
+    client.subscribe(topic.c_str());
+    Serial.print("[wc2] Subscribed to topic: ");
+    Serial.println(topic);
+    setLed(LED_FLASH);
+  } else {
+    Serial.print("[wc2] MQTT connection failed, rc=");
+    Serial.print(client.state());
+    Serial.println(". Will retry in 5 seconds...");
+    setLed(LED_BLINK_FAST);
   }
 }
 
 void setup() {
   Serial.begin(115200);
-  Serial.println();
-  Serial.println("Starting main.cpp...");
-  Serial.printf("[%s] Starting %s (%s) node...\n", node_id, room_name, node_type);
+  delay(100);
+  Serial.println("[wc2] Starting node...");
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
   digitalWrite(LED_PIN, HIGH);
-  Serial.printf("[%s] Testing LED...\n", node_id);
-  for (int i = 0; i < 3; i++) {
-    digitalWrite(LED_PIN, LOW); delay(300);
-    digitalWrite(LED_PIN, HIGH); delay(300);
-  }
-  Serial.printf("[%s] LED test complete\n", node_id);
-  setup_wifi();
+  start_wifi_scan();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-  publish_status();
-  Serial.printf("[%s] \xF0\x9F\x8E\x89 %s ESP8266 Node is ready!\n", node_id, room_name); // 🎉
-  Serial.printf("[%s] \xF0\x9F\x92\xA1 LED will blink for 4 seconds when flush command is received\n", node_id); // 💡
-  Serial.printf("[%s] \xF0\x9F\x93\xA1 Status will be published every 10 seconds\n", node_id); // 📡
+  Serial.println("[wc2] Node ready!");
 }
 
 void loop() {
-  if (!client.connected()) reconnect();
-  client.loop();
+  handle_wifi();
+  handleLed();
+  if (relayActive) setLed(LED_ON);
+  if (wifiState != WIFI_CONNECTED) return;
+  if (!client.connected()) {
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt > reconnectInterval) {
+      Serial.println("[wc2] MQTT not connected, calling reconnect()...");
+      reconnect();
+      lastReconnectAttempt = now;
+    }
+  } else {
+    client.loop();
+  }
   unsigned long now = millis();
-  // Auto-off relay after 5s
   if (relayActive && now > relayOffTime) {
     stop_relay();
   }
-  // Periodic publish status every 10s
-  static int statusCount = 0;
   if (now - lastStatusTime > 10000) {
-    statusCount++;
-    Serial.printf("[%s] \xF0\x9F\x93\x8A Publishing status update #%d\n", node_id, statusCount); // 📊
+    Serial.println("[wc2] Publishing periodic status update...");
     publish_status();
     lastStatusTime = now;
-  }
-  // Debug info every 5s
-  static unsigned long lastDebug = 0;
-  if (now - lastDebug > 5000) {
-    const char* wifi_status = (WiFi.status() == WL_CONNECTED) ? "connected" : "disconnected";
-    const char* mqtt_status = client.connected() ? "connected" : "disconnected";
-    Serial.printf("[%s] \xF0\x9F\x94\x84 Status: WiFi=%s, MQTT=%s, Relay=%d\n", node_id, wifi_status, mqtt_status, digitalRead(RELAY_PIN)); // 🔄
-    lastDebug = now;
   }
 }

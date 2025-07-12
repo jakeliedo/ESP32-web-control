@@ -9,6 +9,8 @@
 const int digitalPins[] = {D0, D1, D2, D3, D4, D5, D6, D7, D8};
 const int numDigitalPins = sizeof(digitalPins) / sizeof(digitalPins[0]);
 
+//const char* ssid = "Vinternal";
+//const char* password = "abcd123456";
 const char* ssid = "Floor 9";
 const char* password = "Veg@s123";
 const char* mqtt_server = "192.168.20.109";
@@ -32,7 +34,6 @@ void setup_wifi() {
   pinMode(LED_PIN, OUTPUT);
   unsigned long lastBlink = millis();
   unsigned long blinkInterval = 250;
-  unsigned long startAttempt = millis();
   while (WiFi.status() != WL_CONNECTED) {
     unsigned long now = millis();
     if (now - lastBlink >= blinkInterval) {
@@ -44,7 +45,9 @@ void setup_wifi() {
     }
     if (retry > 40) {
       digitalWrite(LED_PIN, HIGH); // Turn off LED if failed
-      Serial.println("\n[wc1] WiFi connection failed!");
+      Serial.println("\n[wc1] WiFi connection failed! Rebooting...");
+      delay(1000);
+      ESP.restart(); // Reset thiết bị nếu không kết nối được WiFi
       return;
     }
     yield(); // Allow background tasks (important for ESP8266)
@@ -56,7 +59,7 @@ void setup_wifi() {
 }
 
 void publish_status() {
-  StaticJsonDocument<256> doc;
+  JsonDocument doc;
   doc["node_id"] = node_id;
   doc["node_type"] = node_type;
   doc["room_name"] = room_name;
@@ -72,7 +75,7 @@ void publish_status() {
 }
 
 void publish_response(const char* action, bool success, const char* message) {
-  StaticJsonDocument<256> doc;
+  JsonDocument doc;
   doc["node_id"] = node_id;
   doc["action"] = action;
   doc["success"] = success;
@@ -129,10 +132,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("[wc1] MQTT message received: ");
   Serial.println(msg);
   // Thử parse JSON
-  StaticJsonDocument<128> doc;
+  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, msg);
   if (!err) {
-    if (doc.containsKey("action")) action = doc["action"].as<String>();
+    if (doc["action"].is<String>()) action = doc["action"].as<String>();
     Serial.print("[wc1] Parsed action: ");
     Serial.println(action);
   }

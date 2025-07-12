@@ -8,7 +8,7 @@ import json
 NODE_ID = 'wc_male_02'  # Matches Room2 (Male WC)
 NODE_TYPE = 'male'
 ROOM_NAME = 'Room 2'
-MQTT_BROKER = '192.168.1.182'  # PC host IP address
+MQTT_BROKER = '192.168.20.109'  # PC host IP address
 MQTT_PORT = 1883
 
 # === GPIO Setup ===
@@ -17,7 +17,7 @@ status_led = Pin(2, Pin.OUT)
 # Relay for controlling actuator (water valve, pump, etc.)
 relay = Pin(5, Pin.OUT)
 # Optional: Status indicator LED
-indicator_led = Pin(18, Pin.OUT)
+indicator_led = Pin(8, Pin.OUT)
 
 # Initialize pins
 status_led.value(1)  # OFF (inverted on ESP32)
@@ -41,10 +41,10 @@ def connect_wifi():
     # Scan for available networks and connect
     networks = [n[0].decode() for n in wlan.scan()]
     
-    if "Michelle" in networks:
-        wlan.connect('Michelle', '0908800130')
+    if "Floor 9" in networks:
+        wlan.connect('Floor 9', 'Veg@s123')
     elif "Vinternal" in networks:
-        wlan.connect('Vinternal', 'Veg@s123')
+        wlan.connect('Vinternal', 'abcd123456')
     else:
         print(f"[{NODE_ID}] No known WiFi networks found")
         return False

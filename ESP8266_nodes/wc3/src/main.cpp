@@ -7,7 +7,7 @@
 
 const char* ssid = "Michelle";
 const char* password = "0908800130";
-const char* mqtt_server = "192.168.1.181";
+const char* mqtt_server = "192.168.20.109";
 const char* node_id = "wc3";
 const char* node_type = "female";
 const char* room_name = "Room 1";

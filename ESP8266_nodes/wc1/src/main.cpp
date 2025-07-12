@@ -5,11 +5,15 @@
 #define RELAY_PIN D1
 #define LED_PIN   LED_BUILTIN
 
-const char* ssid = "Michelle";
-const char* password = "0908800130";
-const char* mqtt_server = "192.168.1.181";
+// Define all digital pins D0-D8
+const int digitalPins[] = {D0, D1, D2, D3, D4, D5, D6, D7, D8};
+const int numDigitalPins = sizeof(digitalPins) / sizeof(digitalPins[0]);
+
+const char* ssid = "Floor 9";
+const char* password = "Veg@s123";
+const char* mqtt_server = "192.168.20.109";
 const char* node_id = "wc1";
-const char* node_type = "female";
+const char* node_type = "male";
 const char* room_name = "Room 1";
 
 WiFiClient espClient;
@@ -95,20 +99,26 @@ void blink_led_4s() {
 }
 
 void stop_relay() {
-  digitalWrite(RELAY_PIN, LOW);
+  // Turn off all digital pins D0-D8
+  for (int i = 0; i < numDigitalPins; i++) {
+    digitalWrite(digitalPins[i], LOW);
+  }
   relayActive = false;
   digitalWrite(LED_PIN, HIGH);
-  publish_response("stop", true, "Relay deactivated");
-  Serial.println("[wc1] Relay stopped");
+  publish_response("stop", true, "All digital pins deactivated");
+  Serial.println("[wc1] All digital pins stopped");
 }
 
 void execute_flush() {
-  digitalWrite(RELAY_PIN, HIGH);
+  // Turn on all digital pins D0-D8 to HIGH level
+  for (int i = 0; i < numDigitalPins; i++) {
+    digitalWrite(digitalPins[i], HIGH);
+  }
   relayActive = true;
   digitalWrite(LED_PIN, LOW);
   relayOffTime = millis() + 5000;
-  publish_response("flush", true, "Flush executed, LED blinking 4s");
-  Serial.println("[wc1] FLUSH command received!");
+  publish_response("flush", true, "Flush executed, all D0-D8 pins HIGH, LED blinking 4s");
+  Serial.println("[wc1] FLUSH command received! All D0-D8 pins set to HIGH");
   blink_led_4s();
 }
 
@@ -161,14 +171,21 @@ void setup() {
   Serial.begin(115200);
   delay(100);
   Serial.println("[wc1] Starting node...");
-  pinMode(RELAY_PIN, OUTPUT);
+  
+  // Initialize all digital pins D0-D8 as outputs and set to LOW
+  for (int i = 0; i < numDigitalPins; i++) {
+    pinMode(digitalPins[i], OUTPUT);
+    digitalWrite(digitalPins[i], LOW);
+  }
+  
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);
   digitalWrite(LED_PIN, HIGH);
+  
   setup_wifi();
   Serial.println("[wc1] WiFi connected!");
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+  
   // Test LED startup
   Serial.println("[wc1] Testing LED...");
   for (int i = 0; i < 3; i++) {
@@ -176,6 +193,7 @@ void setup() {
     digitalWrite(LED_PIN, HIGH); delay(300);
   }
   Serial.println("[wc1] LED test complete");
+  Serial.println("[wc1] All digital pins D0-D8 initialized");
   publish_status();
   Serial.println("[wc1] Node ready!");
 }
@@ -184,11 +202,11 @@ void loop() {
   if (!client.connected()) reconnect();
   client.loop();
   unsigned long now = millis();
-  // Tự động tắt relay sau 5s
+  // Automatically turn off all digital pins after 5s
   if (relayActive && now > relayOffTime) {
     stop_relay();
   }
-  // Định kỳ publish status mỗi 10s
+  // Periodically publish status every 10s
   if (now - lastStatusTime > 10000) {
     publish_status();
     lastStatusTime = now;

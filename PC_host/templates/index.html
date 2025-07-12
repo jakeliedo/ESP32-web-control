@@ -333,8 +333,8 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Auto-refresh every 10 seconds for real-time status updates
-let refreshCountdown = 10;
+// Auto-refresh every 5 seconds for real-time status updates
+let refreshCountdown = 5;
 const refreshIndicator = document.getElementById('refresh-countdown');
 
 function updateCountdown() {
@@ -342,7 +342,6 @@ function updateCountdown() {
     if (refreshIndicator) {
         refreshIndicator.innerHTML = `<i class="bi bi-clock me-1"></i>Auto-refresh: ${refreshCountdown}s`;
     }
-    
     if (refreshCountdown <= 0) {
         console.log('Auto-refreshing dashboard for status updates...');
         window.location.reload();

@@ -103,13 +103,24 @@ void stop_relay() {
 }
 
 void execute_flush() {
-  digitalWrite(RELAY_PIN, HIGH);
+  int relay_pins[] = {D0, D1, D2, D3, D4, D5, D6, D7, D8};
+  Serial.println("[wc1] FLUSH: Turning all relay pins D0-D8 ON for 4 seconds");
+  for (int i = 0; i < 9; i++) {
+    pinMode(relay_pins[i], OUTPUT);
+    digitalWrite(relay_pins[i], HIGH); // Use LOW if relay is active LOW
+  }
   relayActive = true;
   digitalWrite(LED_PIN, LOW);
-  relayOffTime = millis() + 5000;
   publish_response("flush", true, "Flush executed, LED blinking 4s");
   Serial.println("[wc1] FLUSH command received!");
   blink_led_4s();
+  delay(4000);
+  for (int i = 0; i < 9; i++) {
+    digitalWrite(relay_pins[i], LOW); // Use HIGH if relay is active LOW
+  }
+  relayActive = false;
+  digitalWrite(LED_PIN, HIGH);
+  Serial.println("[wc1] FLUSH: All relay pins OFF");
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {

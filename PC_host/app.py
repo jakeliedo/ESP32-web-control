@@ -188,6 +188,9 @@ HTML = """
         </div>
     </form>
     <img src="/static/logo.png" class="logo" alt="Logo">
+    <script>
+      setTimeout(function() { window.location.reload(); }, 5000);
+    </script>
 </body>
 </html>
 """

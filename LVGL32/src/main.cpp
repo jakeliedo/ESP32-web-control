@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
 #include <Arduino_GFX_Library.h>
-
+#include <XPT2046_Touchscreen.h>
 #define TFT_BL 27
 #define screenWidth 320
 #define screenHeight 240

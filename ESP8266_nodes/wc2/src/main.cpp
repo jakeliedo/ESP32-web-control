@@ -21,6 +21,7 @@ bool relayActive = false;
 
 void setup_wifi() {
   delay(10);
+  WiFi.setOutputPower(20.5); // Max WiFi power (dBm) for ESP8266
   Serial.print("[wc2] Connecting to WiFi");
   WiFi.begin(ssid, password);
   int retry = 0;
@@ -39,7 +40,8 @@ void setup_wifi() {
 }
 
 void publish_status() {
-  StaticJsonDocument<256> doc;
+  // NOTE: ArduinoJson v7+ recommends using DynamicJsonDocument, despite deprecation warning.
+  DynamicJsonDocument doc(256);
   doc["node_id"] = node_id;
   doc["node_type"] = node_type;
   doc["room_name"] = room_name;
@@ -47,15 +49,19 @@ void publish_status() {
   doc["wifi_connected"] = (WiFi.status() == WL_CONNECTED);
   doc["relay_active"] = relayActive;
   doc["timestamp"] = millis() / 1000;
+  int rssi = WiFi.RSSI();
+  doc["rssi"] = rssi;
   char buf[256];
   size_t n = serializeJson(doc, buf);
   String topic = String("wc/") + node_id + "/status";
   client.publish(topic.c_str(), buf, n);
-  Serial.println("[wc2] Status published");
+  Serial.print("[wc2] Status published, RSSI: ");
+  Serial.println(rssi);
 }
 
 void publish_response(const char* action, bool success, const char* message) {
-  StaticJsonDocument<256> doc;
+  // NOTE: ArduinoJson v7+ recommends using DynamicJsonDocument, despite deprecation warning.
+  DynamicJsonDocument doc(256);
   doc["node_id"] = node_id;
   doc["action"] = action;
   doc["success"] = success;
@@ -106,10 +112,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("[wc2] MQTT message received: ");
   Serial.println(msg);
   // Thử parse JSON
-  StaticJsonDocument<128> doc;
+  // NOTE: ArduinoJson v7+ recommends using DynamicJsonDocument, despite deprecation warning.
+  DynamicJsonDocument doc(128);
   DeserializationError err = deserializeJson(doc, msg);
   if (!err) {
-    if (doc.containsKey("action")) action = doc["action"].as<String>();
+    if (!doc["action"].isNull()) action = doc["action"].as<String>();
     Serial.print("[wc2] Parsed action: ");
     Serial.println(action);
   }
@@ -175,8 +182,8 @@ void loop() {
   if (relayActive && now > relayOffTime) {
     stop_relay();
   }
-  // Định kỳ publish status mỗi 10s
-  if (now - lastStatusTime > 10000) {
+  // Định kỳ publish status mỗi 2s
+  if (now - lastStatusTime > 2000) {
     publish_status();
     lastStatusTime = now;
   }

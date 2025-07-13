@@ -20,29 +20,29 @@
 // #define TOUCH_MAP_Y2 480
 
 /* uncomment for GT911 */
- #define TOUCH_GT911
- #define TOUCH_GT911_SCL 32
- #define TOUCH_GT911_SDA 33
- #define TOUCH_GT911_INT -1
- #define TOUCH_GT911_RST 25
- #define TOUCH_GT911_ROTATION ROTATION_RIGHT//ROTATION_NORMAL
- #define TOUCH_MAP_X1 320
- #define TOUCH_MAP_X2 0
- #define TOUCH_MAP_Y1 240
- #define TOUCH_MAP_Y2 0
+//#define TOUCH_GT911
+ //#define TOUCH_GT911_SCL 32
+ //#define TOUCH_GT911_SDA 33
+ //#define TOUCH_GT911_INT -1
+ //#define TOUCH_GT911_RST 25
+ //#define TOUCH_GT911_ROTATION ROTATION_RIGHT//ROTATION_NORMAL
+ //#define TOUCH_MAP_X1 320
+ //#define TOUCH_MAP_X2 0
+ //#define TOUCH_MAP_Y1 240
+ //#define TOUCH_MAP_Y2 0
 
 /* uncomment for XPT2046 */
-// #define TOUCH_XPT2046
-// #define TOUCH_XPT2046_SCK 14
-// #define TOUCH_XPT2046_MISO 12
-// #define TOUCH_XPT2046_MOSI 13
-// #define TOUCH_XPT2046_CS 33
-// #define TOUCH_XPT2046_INT 36
-// #define TOUCH_XPT2046_ROTATION 3
-// #define TOUCH_MAP_X1 4000
-// #define TOUCH_MAP_X2 100
-// #define TOUCH_MAP_Y1 100
-// #define TOUCH_MAP_Y2 4000
+ #define TOUCH_XPT2046
+ #define TOUCH_XPT2046_SCK 14
+ #define TOUCH_XPT2046_MISO 12
+ #define TOUCH_XPT2046_MOSI 13
+ #define TOUCH_XPT2046_CS 33
+ #define TOUCH_XPT2046_INT 36
+ #define TOUCH_XPT2046_ROTATION 3
+ #define TOUCH_MAP_X1 4000
+ #define TOUCH_MAP_X2 100
+ #define TOUCH_MAP_Y1 100
+ #define TOUCH_MAP_Y2 4000
 
 int touch_last_x = 0, touch_last_y = 0;
 

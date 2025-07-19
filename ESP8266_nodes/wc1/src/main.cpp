@@ -5,7 +5,7 @@
 #define RELAY_PIN D1
 #define LED_PIN   LED_BUILTIN
 
-const char* ssid = "Michelle";
+const char* ssid = "Roll";
 const char* password = "0908800130";
 const char* mqtt_server = "192.168.1.181";
 const char* node_id = "wc1";
@@ -49,6 +49,9 @@ void setup_wifi() {
   Serial.println("\n[wc1] WiFi connected!");
   Serial.print("[wc1] IP: ");
   Serial.println(WiFi.localIP());
+  int rssi = WiFi.RSSI();
+  Serial.print("[wc1] WiFi RSSI after connect: ");
+  Serial.println(rssi);
 }
 
 void publish_status() {
@@ -60,11 +63,14 @@ void publish_status() {
   doc["wifi_connected"] = (WiFi.status() == WL_CONNECTED);
   doc["relay_active"] = relayActive;
   doc["timestamp"] = millis() / 1000;
+  int rssi = WiFi.RSSI();
+  doc["rssi"] = rssi;
   char buf[256];
   size_t n = serializeJson(doc, buf);
   String topic = String("wc/") + node_id + "/status";
   client.publish(topic.c_str(), buf, n);
-  Serial.println("[wc1] Status published");
+  Serial.print("[wc1] Status published, RSSI: ");
+  Serial.println(rssi);
 }
 
 void publish_response(const char* action, bool success, const char* message) {
@@ -161,6 +167,10 @@ void reconnect() {
       client.subscribe(topic.c_str());
       Serial.print("[wc1] Subscribed to topic: ");
       Serial.println(topic);
+      // In ra RSSI sau khi kết nối broker
+      int rssi = WiFi.RSSI();
+      Serial.print("[wc1] WiFi RSSI after MQTT connect: ");
+      Serial.println(rssi);
     } else {
       Serial.println("[wc1] MQTT connection failed, retrying...");
       delay(2000);

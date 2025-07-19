@@ -5,9 +5,9 @@
 #define RELAY_PIN D1
 #define LED_PIN   LED_BUILTIN
 
-const char* ssid = "Michelle";
+const char* ssid = "Roll";
 const char* password = "0908800130";
-const char* mqtt_server = "192.168.1.181";
+const char* mqtt_server = "192.168.1.51";
 const char* node_id = "wc2";
 const char* node_type = "male";
 const char* room_name = "Room 2";
@@ -37,6 +37,9 @@ void setup_wifi() {
   Serial.println("\n[wc2] WiFi connected!");
   Serial.print("[wc2] IP: ");
   Serial.println(WiFi.localIP());
+  int rssi = WiFi.RSSI();
+  Serial.print("[wc2] WiFi RSSI after connect: ");
+  Serial.println(rssi);
 }
 
 void publish_status() {

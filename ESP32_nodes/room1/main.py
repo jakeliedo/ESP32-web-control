@@ -8,7 +8,7 @@ import json
 NODE_ID = 'wc_male_01'  # Matches Room1 (Male WC)
 NODE_TYPE = 'male'
 ROOM_NAME = 'Room 1'
-MQTT_BROKER = '192.168.1.181'  # PC host IP address (updated)
+MQTT_BROKER = '192.168.1.51'  # PC host IP address (updated)
 MQTT_PORT = 1883
 
 # === GPIO Setup ===
@@ -41,8 +41,8 @@ def connect_wifi():
     # Scan for available networks and connect
     networks = [n[0].decode() for n in wlan.scan()]
     
-    if "Michelle" in networks:
-        wlan.connect('Michelle', '0908800130')
+    if "Roll" in networks:
+        wlan.connect('Roll', '0908800130')
     elif "Vinternal" in networks:
         wlan.connect('Vinternal', 'Veg@s123')
     else:
@@ -54,7 +54,12 @@ def connect_wifi():
         if wlan.isconnected():
             wifi_connected = True
             ip = wlan.ifconfig()[0]
-            print(f"[{NODE_ID}] WiFi connected! IP: {ip}")
+            rssi = None
+            try:
+                rssi = wlan.status('rssi')
+            except Exception as e:
+                print(f"[{NODE_ID}] [WARN] Could not get RSSI: {e}")
+            print(f"[{NODE_ID}] WiFi connected! IP: {ip}, RSSI: {rssi}")
             return True
         time.sleep(0.5)
         print(f"[{NODE_ID}] Connecting to WiFi... ({i+1}/20)")
@@ -205,6 +210,13 @@ def connect_mqtt():
 def publish_status():
     if mqtt_client and mqtt_connected:
         try:
+            wlan = network.WLAN(network.STA_IF)
+            rssi = None
+            if wlan.isconnected():
+                try:
+                    rssi = wlan.status('rssi')
+                except Exception as e:
+                    print(f"[{NODE_ID}] [WARN] Could not get RSSI for status: {e}")
             status_data = {
                 "node_id": NODE_ID,
                 "node_type": NODE_TYPE,
@@ -213,14 +225,13 @@ def publish_status():
                 "wifi_connected": wifi_connected,
                 "relay_active": relay.value(),
                 "timestamp": time.time(),
-                "free_memory": str(time.ticks_ms())  # Simple way to show activity
+                "free_memory": str(time.ticks_ms()),
+                "rssi": rssi
             }
-            
             topic = f"wc/{NODE_ID}/status"
             message = json.dumps(status_data)
             mqtt_client.publish(topic, message)
-            print(f"[{NODE_ID}] Status published")
-            
+            print(f"[{NODE_ID}] Status published, RSSI: {rssi}")
         except Exception as e:
             print(f"[{NODE_ID}] Failed to publish status: {e}")
 
@@ -263,13 +274,16 @@ def main():
         print(f"[{NODE_ID}] Failed to connect to WiFi. Retrying in 10 seconds...")
         time.sleep(10)
         return
-    
+    print(f"[{NODE_ID}] ✅ WiFi connected, preparing to connect MQTT broker {MQTT_BROKER}:{MQTT_PORT} ...")
+
     # Connect to MQTT
-    if not connect_mqtt():
-        print(f"[{NODE_ID}] Failed to connect to MQTT. Retrying in 10 seconds...")
+    if connect_mqtt():
+        print(f"[{NODE_ID}] ✅ Connected to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}")
+    else:
+        print(f"[{NODE_ID}] ❌ Failed to connect to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}. Retrying in 10 seconds...")
         time.sleep(10)
         return
-    
+
     print(f"[{NODE_ID}] 🎉 {ROOM_NAME} ESP32 Node is ready!")
     print(f"[{NODE_ID}] 💡 LED will blink for 4 seconds when flush command is received")
     print(f"[{NODE_ID}] 📡 Status will be published every 10 seconds")

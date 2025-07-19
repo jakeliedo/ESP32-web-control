@@ -1,11 +1,24 @@
 import os
+import socket
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
+def get_lan_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
 # MQTT Configuration
-MQTT_BROKER = os.getenv("MQTT_BROKER", "192.168.1.181")
+MQTT_BROKER = os.getenv("MQTT_BROKER")
+if not MQTT_BROKER or MQTT_BROKER in ["0.0.0.0", ""]:
+    MQTT_BROKER = get_lan_ip()
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")

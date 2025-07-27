@@ -292,7 +292,7 @@ MOCK_EVENTS = [
 ]
 
 def get_nodes_with_mock_data():
-    """Get nodes from config/devices.json (admin UI), fallback to database or mock data if empty."""
+    """Get nodes from config/devices.json (admin UI), fallback to database. Nếu không có dữ liệu, trả về rỗng."""
     try:
         admin_nodes = load_admin_nodes()
         current_time = time.time()
@@ -306,7 +306,6 @@ def get_nodes_with_mock_data():
                 node_id = n.get('node_id')
                 db_node = db_nodes.get(node_id, {})
                 last_seen = db_node.get('last_seen', 0)
-                # Nếu không có last_seen hoặc không có database, luôn offline
                 if not db_nodes_raw or not last_seen or last_seen == 0:
                     status = 'offline'
                 else:
@@ -320,7 +319,6 @@ def get_nodes_with_mock_data():
                     'last_seen': last_seen
                 })
             return result
-        # Nếu không có file config, fallback sang database
         if db_nodes_raw and len(db_nodes_raw) > 0:
             nodes = []
             for node in db_nodes_raw:
@@ -339,25 +337,25 @@ def get_nodes_with_mock_data():
                     'last_seen': last_seen
                 })
             return nodes
-        # Fallback mock
-        print("⚠️ No nodes found in config or database - Using MOCK data (all offline)")
-        return MOCK_NODES
+        # Nếu không có dữ liệu thực, trả về rỗng
+        print("⚠️ No nodes found in config or database - No mock data returned")
+        return []
     except Exception as e:
-        print(f"❌ Error getting nodes, using mock data: {e}")
-        return MOCK_NODES
+        print(f"❌ Error getting nodes: {e}")
+        return []
 
 def get_events_with_mock_data(limit=10):
-    """Get events from database, fallback to mock data if empty"""
+    """Get events from database, nếu không có thì trả về rỗng."""
     try:
         real_events = get_recent_events(limit)
         if real_events and len(real_events) > 0:
             return real_events
         else:
-            print("No real events found, using mock data for demo")
-            return MOCK_EVENTS[:limit]
+            print("⚠️ No real events found - No mock data returned")
+            return []
     except Exception as e:
-        print(f"Error getting events from database, using mock data: {e}")
-        return MOCK_EVENTS[:limit]
+        print(f"Error getting events from database: {e}")
+        return []
 
 @app.route('/', methods=['GET', 'POST'])
 def dashboard():

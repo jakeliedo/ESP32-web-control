@@ -10,7 +10,7 @@
 #define DEVICE_NAME "ESP32 Remote Control"
 
 // === MQTT Configuration (same as room4) ===
-#define MQTT_BROKER "192.168.1.182"
+#define MQTT_BROKER "192.168.1.183"
 #define MQTT_PORT 1883
 
 // === WiFi Credentials (same as room4) ===
@@ -52,9 +52,22 @@ int currentPage = 0; // 0 = main control, 1 = wifi debug
 unsigned long resetTime[numNodes] = {0};
 bool resetPending[numNodes] = {false};
 
+// WiFi non-blocking connection state
+enum WiFiState {
+  WIFI_IDLE,
+  WIFI_SCANNING,
+  WIFI_CONNECTING,
+  WIFI_CONNECTED,
+  WIFI_FAILED
+};
+WiFiState wifiState = WIFI_IDLE;
+unsigned long lastWifiActionTime = 0;
+int wifiConnectTries = 0;
+
 // === Function Declarations ===
 void setupGPIO();
-void connectWiFi();
+void manageWiFi(); // Replaces connectWiFi() in loop
+void startWiFiConnection(); // Starts the connection process
 void connectMQTT();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 void publishStatus();
@@ -94,12 +107,12 @@ void setup() {
   dmtDisplay.writeText(0x5000, "Booting...");
   delay(1000);
   
-  Serial.println("DEBUG: About to call connectWiFi()");
-  connectWiFi();
+  Serial.println("DEBUG: Starting WiFi connection process...");
+  startWiFiConnection(); // Start the non-blocking connection
   
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
-  connectMQTT();
+  // connectMQTT() will be called from manageWiFi() after connection
   
   showMainPage();
   
@@ -107,21 +120,17 @@ void setup() {
 }
 
 void loop() {
-  // Handle WiFi reconnection
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("⚠️ WiFi disconnected, reconnecting...");
-    Serial.println("🔧 Setting WiFi Icon to DISCONNECTED (reconnecting)");
-    dmtDisplay.writeVP(0x3500, (uint16_t)0x0000); // Turn off WiFi icon immediately
-    dmtDisplay.writeText(0x5100, "WiFi Disconnected!");
-    connectWiFi();
-  }
+  manageWiFi(); // Handle WiFi state machine
   
-  // Handle MQTT reconnection
-  if (!mqttClient.connected()) {
+  // Handle MQTT reconnection only if WiFi is connected
+  if (WiFi.status() == WL_CONNECTED && !mqttClient.connected()) {
     connectMQTT();
   }
   
-  mqttClient.loop();
+  if (mqttClient.connected()) {
+    mqttClient.loop();
+  }
+  
   dmtDisplay.handleIncomingData();
   
   // Blink status LED
@@ -146,8 +155,8 @@ void loop() {
   
   // System heartbeat every 60 seconds
   if (millis() - lastHeartbeat > 60000) {
-    Serial.printf("💓 Uptime: %lu seconds, Heap: %d bytes\n", 
-                  millis() / 1000, ESP.getFreeHeap());
+    Serial.printf("💓 Uptime: %lu seconds, Heap: %d bytes, WiFi Status: %d, MQTT: %s\n", 
+                  millis() / 1000, ESP.getFreeHeap(), WiFi.status(), mqttClient.connected() ? "OK" : "FAIL");
     lastHeartbeat = millis();
   }
   
@@ -167,109 +176,122 @@ void setupGPIO() {
   Serial.println("✓ GPIO initialized");
 }
 
-void connectWiFi() {
-  Serial.println("🔍 WiFi Connection Starting...");
-  
+void startWiFiConnection() {
+  Serial.println("🔍 Starting WiFi Scan...");
+  dmtDisplay.writeText(0x5100, "Scanning WiFi...");
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-  delay(100);
-  
-  dmtDisplay.writeText(0x5100, "Scanning WiFi...");
-  
-  int n = WiFi.scanNetworks();
-  Serial.printf("� Found %d networks\n", n);
-  
-  if (n == 0) {
-    Serial.println("❌ No networks found");
-    dmtDisplay.writeText(0x5100, "No WiFi found!");
-    delay(5000); // Increased delay before restart
-    Serial.println("🔄 Restarting device...");
-    ESP.restart();
-    return;
-  }
-  
-  bool found = false;
-  String connectingSSID = "";
-  
-  // Priority order: Roll -> Floor 9 -> Vinternal
-  for (int i = 0; i < n; ++i) {
-    String ssid = WiFi.SSID(i);
-    
-    if (ssid == "Roll") {
-      connectingSSID = "Roll";
-      dmtDisplay.writeText(0x5100, "Connecting Roll...");
-      WiFi.begin(ssid3, pass3);
-      found = true;
+  wifiState = WIFI_SCANNING;
+  lastWifiActionTime = millis();
+}
+
+void manageWiFi() {
+  unsigned long currentTime = millis();
+
+  switch (wifiState) {
+    case WIFI_IDLE:
+      // Do nothing, wait for something to trigger a connection
       break;
-    } else if (ssid == "Floor 9") {
-      connectingSSID = "Floor 9";
-      dmtDisplay.writeText(0x5100, "Connecting Floor 9...");
-      WiFi.begin(ssid1, pass1);
-      found = true;
+
+    case WIFI_SCANNING:
+      if (currentTime - lastWifiActionTime > 100) { // Wait 100ms for disconnect to settle
+        int n = WiFi.scanNetworks();
+        Serial.printf("📡 Found %d networks\n", n);
+
+        if (n == 0) {
+          Serial.println("❌ No networks found, retrying scan in 10s...");
+          dmtDisplay.writeText(0x5100, "No WiFi found!");
+          wifiState = WIFI_FAILED; // Go to failed state to handle retry
+          lastWifiActionTime = currentTime;
+          return;
+        }
+
+        bool found = false;
+        String connectingSSID = "";
+
+        // Priority order: Roll -> Floor 9 -> Vinternal
+        for (int i = 0; i < n; ++i) {
+          String ssid = WiFi.SSID(i);
+          if (ssid == "Roll") {
+            connectingSSID = "Roll";
+            WiFi.begin(ssid3, pass3);
+            found = true;
+            break;
+          } else if (ssid == "Floor 9") {
+            connectingSSID = "Floor 9";
+            WiFi.begin(ssid1, pass1);
+            found = true;
+            break;
+          } else if (ssid == "Vinternal") {
+            connectingSSID = "Vinternal";
+            WiFi.begin(ssid2, pass2);
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          Serial.println("❌ No known WiFi networks found, retrying scan in 10s...");
+          dmtDisplay.writeText(0x5100, "No WiFi found!");
+          wifiState = WIFI_FAILED; // Go to failed state to handle retry
+          lastWifiActionTime = currentTime;
+        } else {
+          Serial.printf("🔄 Connecting to %s...\n", connectingSSID.c_str());
+          dmtDisplay.writeText(0x5100, ("Connecting " + connectingSSID + "...").c_str());
+          wifiState = WIFI_CONNECTING;
+          wifiConnectTries = 0;
+          lastWifiActionTime = currentTime;
+        }
+      }
       break;
-    } else if (ssid == "Vinternal") {
-      connectingSSID = "Vinternal";
-      dmtDisplay.writeText(0x5100, "Connecting Vinternal...");
-      WiFi.begin(ssid2, pass2);
-      found = true;
+
+    case WIFI_CONNECTING:
+      // Blinking icon effect
+      if (currentTime - lastWifiActionTime >= 500) {
+        bool iconState = (wifiConnectTries % 2 == 0);
+        dmtDisplay.writeVP(0x3500, iconState ? (uint16_t)0x0001 : (uint16_t)0x0000);
+        lastWifiActionTime = currentTime;
+        wifiConnectTries++;
+      }
+
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("\n✅ WiFi Connected: %s\n", WiFi.SSID().c_str());
+        Serial.printf("📶 IP: %s, RSSI: %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+        
+        dmtDisplay.writeVP(0x3500, (uint16_t)0x0001); // Solid ON
+        String wifiInfo = "WiFi: " + WiFi.SSID() + " (" + String(WiFi.RSSI()) + "dBm)";
+        dmtDisplay.writeText(0x5100, wifiInfo.c_str());
+        
+        wifiState = WIFI_CONNECTED;
+        connectMQTT(); // Connect to MQTT now that WiFi is up
+      } else if (wifiConnectTries > 40) { // Timeout after 20 seconds
+        Serial.println("\n❌ WiFi connection failed (timeout)");
+        dmtDisplay.writeText(0x5100, "WiFi Failed!");
+        dmtDisplay.writeVP(0x3500, (uint16_t)0x0000); // Solid OFF
+        wifiState = WIFI_FAILED;
+        lastWifiActionTime = currentTime;
+      }
       break;
-    }
-  }
-  
-  if (!found) {
-    Serial.println("❌ No known WiFi networks found");
-    dmtDisplay.writeText(0x5100, "No WiFi found!");
-    delay(3000);
-    Serial.println("🔄 Restarting device...");
-    ESP.restart();
-    return;
-  }
-  
-  Serial.printf("🔄 Connecting to %s", connectingSSID.c_str());
-  
-  // WiFi connection with blinking icon effect
-  int tries = 0;
-  bool iconState = false; // false = off (0x0000), true = on (0x0001)
-  unsigned long lastBlink = 0;
-  
-  while (WiFi.status() != WL_CONNECTED && tries < 40) { // Increased to 40 tries (20 seconds)
-    unsigned long currentTime = millis();
-    
-    // Blink WiFi icon every 500ms
-    if (currentTime - lastBlink >= 500) {
-      iconState = !iconState;
-      Serial.printf("🔄 WiFi Connecting - Blink Icon: %s\n", iconState ? "ON" : "OFF");
-      dmtDisplay.writeVP(0x3500, iconState ? (uint16_t)0x0001 : (uint16_t)0x0000);
-      lastBlink = currentTime;
-    }
-    
-    delay(500); // Check every 100ms instead of 500ms for smoother blinking
-    tries++;
-    
-    if (tries % 10 == 0) {
-      Serial.print(".");
-    }
-  }
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\n✅ WiFi Connected: %s\n", connectingSSID.c_str());
-    Serial.printf("📶 IP: %s, RSSI: %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
-    
-    // Set WiFi icon to solid on
-    Serial.println("🔧 Setting WiFi Icon to CONNECTED");
-    dmtDisplay.writeVP(0x3500, (uint16_t)0x0001);
-    
-    String wifiInfo = "WiFi: " + connectingSSID + " (" + String(WiFi.RSSI()) + "dBm)";
-    dmtDisplay.writeText(0x5100, wifiInfo.c_str());
-    dmtDisplay.showWiFiIcon(true);
-  } else {
-    Serial.println("\n❌ WiFi connection failed");
-    dmtDisplay.writeText(0x5100, "WiFi Failed!");
-    Serial.println("🔧 Setting WiFi Icon to DISCONNECTED");
-    dmtDisplay.writeVP(0x3500, (uint16_t)0x0000); // Turn off WiFi icon
-    delay(3000);
-    Serial.println("🔄 Restarting device...");
-    ESP.restart();
+
+    case WIFI_CONNECTED:
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("⚠️ WiFi disconnected!");
+        dmtDisplay.writeVP(0x3500, (uint16_t)0x0000); // Icon OFF
+        dmtDisplay.writeText(0x5100, "WiFi Disconnected!");
+        mqttClient.disconnect();
+        wifiState = WIFI_IDLE; // Reset state machine
+        startWiFiConnection(); // Re-start the connection process
+      }
+      break;
+
+    case WIFI_FAILED:
+      // Wait for 10 seconds before trying to connect again
+      if (currentTime - lastWifiActionTime > 10000) {
+        Serial.println("🔄 Retrying WiFi connection...");
+        wifiState = WIFI_IDLE;
+        startWiFiConnection();
+      }
+      break;
   }
 }
 
@@ -426,7 +448,7 @@ void handleDMTTouch(uint16_t vpAddress, uint16_t vpData) {
     Serial.printf("🔧 TEST: Force WiFi Reconnect (VP=0x%04X)\n", vpAddress);
     WiFi.disconnect();
     delay(1000);
-    connectWiFi();
+    startWiFiConnection();
     return;
   }
   
@@ -456,6 +478,7 @@ void handleDMTTouchWithKeyCode(uint16_t vpAddress, uint8_t keyCode, uint16_t vpD
                   vpAddress, keyCode);
     currentPage = 0;
     showMainPage();
+    showWiFiDebugPage();
   } else if (vpAddress == 0x1001 && vpData == 0x0001) {
     Serial.printf("📄 Page Switch with KeyCode: WiFi Debug (VP=0x%04X, KeyCode=0x%02X)\n", 
                   vpAddress, keyCode);
@@ -469,7 +492,7 @@ void handleDMTTouchWithKeyCode(uint16_t vpAddress, uint8_t keyCode, uint16_t vpD
                   vpAddress, keyCode);
     WiFi.disconnect();
     delay(1000);
-    connectWiFi();
+    startWiFiConnection();
     return;
   }
   

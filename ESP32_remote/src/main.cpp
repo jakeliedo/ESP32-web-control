@@ -10,7 +10,7 @@
 #define DEVICE_NAME "ESP32 Remote Control"
 
 // === MQTT Configuration (same as room4) ===
-#define MQTT_BROKER "192.168.1.183"
+#define MQTT_BROKER "192.168.1.182"
 #define MQTT_PORT 1883
 
 // === WiFi Credentials (same as room4) ===
@@ -29,7 +29,7 @@ const char* pass3 = "0908800130";
 const int STATUS_LED_PIN = 8; // Built-in LED for ESP32-C3
 
 // === Node List for Control ===
-const char* nodeList[] = {"wc_male_01", "wc_male_02", "wc_female_01", "wc_female_02"};
+const char* nodeList[] = {"wc1", "wc2", "wc3", "wc_female_02"};
 const char* nodeNames[] = {"Male WC 1", "Male WC 2", "Female WC 1", "Female WC 2"};
 const uint16_t touchVPAddresses[] = {0x2100, 0x2200, 0x2300, 0x2400};
 const uint16_t statusVPAddresses[] = {0x3100, 0x3200, 0x3300, 0x3400};
@@ -215,16 +215,19 @@ void manageWiFi() {
           if (ssid == "Roll") {
             connectingSSID = "Roll";
             WiFi.begin(ssid3, pass3);
+            mqttClient.setServer("192.168.1.182", MQTT_PORT);
             found = true;
             break;
           } else if (ssid == "Floor 9") {
             connectingSSID = "Floor 9";
             WiFi.begin(ssid1, pass1);
+            mqttClient.setServer("192.168.100.121", MQTT_PORT);
             found = true;
             break;
           } else if (ssid == "Vinternal") {
             connectingSSID = "Vinternal";
             WiFi.begin(ssid2, pass2);
+            mqttClient.setServer("192.168.100.121", MQTT_PORT);
             found = true;
             break;
           }

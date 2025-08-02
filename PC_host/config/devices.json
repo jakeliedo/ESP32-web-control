@@ -20,13 +20,14 @@
   {
     "node_id": "wc2",
     "node_type": "male",
-    "name": "ROOM2"
+    "name": "Room",
+    "hide": false
   },
   {
     "node_id": "wc_male_01",
     "node_type": "male",
     "name": "Room",
-    "hide": false
+    "hide": true
   },
   {
     "node_id": "wc_male_02",

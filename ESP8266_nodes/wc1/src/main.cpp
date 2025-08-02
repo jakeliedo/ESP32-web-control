@@ -21,41 +21,79 @@ bool relayActive = false;
 
 void setup_wifi() {
   delay(10);
-  Serial.print("[wc1] Connecting to WiFi");
-  WiFi.begin(ssid, password);
-  int retry = 0;
-  bool ledState = false;
-  pinMode(LED_PIN, OUTPUT);
-  unsigned long lastBlink = millis();
-  unsigned long blinkInterval = 250;
-  unsigned long startAttempt = millis();
-  while (WiFi.status() != WL_CONNECTED) {
-    unsigned long now = millis();
-    if (now - lastBlink >= blinkInterval) {
-      ledState = !ledState;
-      digitalWrite(LED_PIN, ledState ? LOW : HIGH); // Blink LED (active LOW)
-      lastBlink = now;
-      Serial.print(".");
-      retry++;
+  
+  Serial.println("[wc1] Scanning for WiFi networks...");
+
+  int n = WiFi.scanNetworks();
+  Serial.println("[wc1] Scan complete.");
+
+  const char* ssid_to_connect = nullptr;
+  const char* password_to_connect = "0908800130";
+  const char* mqtt_server_to_use = nullptr;
+
+  for (int i = 0; i < n; ++i) {
+    String ssid_found = WiFi.SSID(i);
+    Serial.print("[wc1] Found SSID: ");
+    Serial.println(ssid_found);
+
+    if (ssid_found == "Floor 9") {
+      ssid_to_connect = "Floor 9";
+      mqtt_server_to_use = "192.168.100.121";
+      break;
+    } else if (ssid_found == "Vinternal") {
+      ssid_to_connect = "Vinternal";
+      mqtt_server_to_use = "192.168.100.121";
+      break;
+    } else if (ssid_found == "Roll") {
+      ssid_to_connect = "Roll";
+      mqtt_server_to_use = "192.168.1.182";
+      break;
     }
-    if (retry > 40) {
-      digitalWrite(LED_PIN, HIGH); // Turn off LED if failed
-      Serial.println("\n[wc1] WiFi connection failed!");
-      return;
-    }
-    yield(); // Allow background tasks (important for ESP8266)
   }
-  digitalWrite(LED_PIN, HIGH); // Turn off LED when connected
-  Serial.println("\n[wc1] WiFi connected!");
-  Serial.print("[wc1] IP: ");
-  Serial.println(WiFi.localIP());
-  int rssi = WiFi.RSSI();
-  Serial.print("[wc1] WiFi RSSI after connect: ");
-  Serial.println(rssi);
+
+  if (ssid_to_connect) {
+    Serial.print("[wc1] Connecting to SSID: ");
+    Serial.println(ssid_to_connect);
+    WiFi.begin(ssid_to_connect, password_to_connect);
+
+    int retry = 0;
+    bool ledState = false;
+    pinMode(LED_PIN, OUTPUT);
+    unsigned long lastBlink = millis();
+    unsigned long blinkInterval = 250;
+
+    while (WiFi.status() != WL_CONNECTED) {
+      unsigned long now = millis();
+      if (now - lastBlink >= blinkInterval) {
+        ledState = !ledState;
+        digitalWrite(LED_PIN, ledState ? LOW : HIGH);
+        lastBlink = now;
+        Serial.print(".");
+        retry++;
+      }
+      if (retry > 40) {
+        digitalWrite(LED_PIN, HIGH);
+        Serial.println("\n[wc1] WiFi connection failed!");
+        return;
+      }
+      yield();
+    }
+
+    digitalWrite(LED_PIN, HIGH);
+    Serial.println("\n[wc1] WiFi connected!");
+    Serial.print("[wc1] IP: ");
+    Serial.println(WiFi.localIP());
+
+    mqtt_server = mqtt_server_to_use;
+    Serial.print("[wc1] MQTT Server: ");
+    Serial.println(mqtt_server);
+  } else {
+    Serial.println("[wc1] No matching SSID found!");
+  }
 }
 
 void publish_status() {
-  StaticJsonDocument<256> doc;
+  JsonDocument doc;
   doc["node_id"] = node_id;
   doc["node_type"] = node_type;
   doc["room_name"] = room_name;
@@ -74,7 +112,7 @@ void publish_status() {
 }
 
 void publish_response(const char* action, bool success, const char* message) {
-  StaticJsonDocument<256> doc;
+  JsonDocument doc;
   doc["node_id"] = node_id;
   doc["action"] = action;
   doc["success"] = success;
@@ -135,11 +173,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
   String action = msg;
   Serial.print("[wc1] MQTT message received: ");
   Serial.println(msg);
-  // Thử parse JSON
-  StaticJsonDocument<128> doc;
+  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, msg);
   if (!err) {
-    if (doc.containsKey("action")) action = doc["action"].as<String>();
+    if (doc["action"].is<String>()) action = doc["action"].as<String>();
     Serial.print("[wc1] Parsed action: ");
     Serial.println(action);
   }
